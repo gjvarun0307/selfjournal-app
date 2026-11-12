@@ -1,0 +1,51 @@
+# SelfJournal
+
+Local-only, encrypted, plugin-based self-help/journal app. Expo SDK 58, Expo Router, TypeScript, Jest (jest-expo). Android first, open source.
+Spec: `docs/superpowers/specs/2026-11-11-selfjournal-app-design.md` · Roadmap: `docs/superpowers/plans/2026-11-12-roadmap.md` · Plans: `docs/superpowers/plans/`.
+Plans run task-by-task with `superpowers:subagent-driven-development`; progress = checked boxes in the plan + `git log`.
+
+## Commands
+- `npm test` (jest) · `npx tsc --noEmit` · `npx expo lint` · `npx expo run:android` (dev build; needs a device/emulator).
+- `android/` and `ios/` are generated (CNG), not committed. After changing native config/plugins: `npx expo prebuild --clean`.
+- Port 8081 may be busy (another project's Metro) — start Metro on another port.
+- Install Expo packages with `npx expo install <pkg>`; non-Expo dev-only with `npm i -D`.
+- Expo APIs change per SDK: read docs for the `expo` major in `package.json` (https://docs.expo.dev/versions/v58.0.0/, https://docs.expo.dev/llms.txt). Never answer from memory.
+- Load the relevant installed expo skills (expo-overview, expo-router, expo-ui, expo-native-ui, expo-design-system, expo-animation) before UI/Expo work. Don't install new skills without asking the user.
+
+## Folder map (`@/` = `src/`)
+- `src/app/` Expo Router routes only (`(tabs)/`, `settings/`, `onboarding.tsx`, `_layout.tsx`); thin, they render `src/screens/*`.
+- `src/screens/` screens: `lock/` (LockGate, `useAppLock`, PIN pad), `onboarding/`, `settings/`.
+- `src/core/db/` `types.ts` (`Db`), `serialized-db.ts` (FIFO + transactions), `migrations.ts`, `core-migrations.ts`, `expo-db.ts` (SQLCipher), `test-db.ts` (better-sqlite3 for tests).
+- `src/core/security/` `db-key.ts` (key in SecureStore), `pin.ts` (PBKDF2 hash, grace period), `app-lock-store.ts`.
+- `src/core/events/` `bus.ts` (`EventBus`), `types.ts` (`AppEvents`, augmented per plugin).
+- `src/core/plugins/` `types.ts` (`PluginDefinition`, `PluginContext`, `PluginTab`), `host.ts` (migrations + activation), `tabs.ts`, `use-enabled-ids.ts`.
+- `src/core/settings/app-settings.ts` key/value settings in the DB. `src/core/app-provider.tsx` boots services; hooks `useHost`, `useBus`, `useAppSettings`, `useEnabledPlugins`.
+- `src/plugins/<id>/index.ts` one plugin each; `src/plugins/index.ts` exports `ALL_PLUGINS`.
+- `src/theme/` `tokens.ts` (single source of colours/spacing/radii/fonts), `use-theme.ts`.
+- Tests colocated: `foo.ts` -> `foo.test.ts(x)`.
+
+## Global constraints
+- Android first; iOS not a release target; **no web**. Don't add `.web.tsx` variants.
+- Local-only data. No backend, no accounts, no analytics, no telemetry. **No network calls in this plan.**
+- **No `expo-updates` / EAS Update.** (Ignore the old template advice on EAS cloud builds/`eas update`/bun.)
+- Install Expo packages with `npx expo install <pkg>`. Non-Expo dev-only packages with `npm i -D`.
+- Native folders (`android/`, `ios/`) are generated (CNG) and **not committed**.
+- Android Auto Backup must be off: `android:allowBackup="false"`.
+- Database encrypted with SQLCipher; key generated on first launch, stored via `expo-secure-store`, **never derived from the PIN**.
+- Notifications (later plans) use generic text and never name a habit or behaviour.
+- No streaks that reset, no shaming copy, no red alarm styling anywhere.
+- Colours, spacing, radii and fonts come from `src/theme/tokens.ts`. No hard-coded colour literals in components.
+- Plugins never import another plugin's internals. They communicate only via `EventBus` and their `PluginDefinition`.
+- Plugin ids: `journal`, `habits`, `recovery`, `gamification`, `lifestats`. All enabled on first launch.
+- Turning a plugin off keeps its data. Its migrations still run, and only its activation stops.
+- File names kebab-case; tests colocated as `*.test.ts(x)` beside the file.
+
+## Gotchas
+- Inside `db.transaction(async tx => …)` use ONLY `tx`. Calling the outer `db` inside the callback deadlocks (the transaction holds the queue).
+- Any RN `<Modal>` or `Alert` renders above the app-lock overlay. Screens that open one must close it when the app locks (`locked` from `useAppLock()`).
+- With app lock on, FLAG_SECURE (expo-screen-capture) blocks screenshots and Recents thumbnails. To check locked states on a device use `uiautomator dump`, not screencap.
+- Check DB encryption on device: `adb exec-out run-as app.selfjournal head -c 16 files/SQLite/selfjournal.db | xxd` must NOT start with "SQLite format 3". (The quoted `adb shell … sh -c '…'` form silently prints nothing.)
+- Migration ids are `<owner>:NNN` (`core:001`, `habits:001`). Never edit an applied migration; add a new one.
+
+## Adding a plugin
+See `CONTRIBUTING.md`.
