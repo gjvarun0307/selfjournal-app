@@ -42,4 +42,25 @@ describe('createSerializedDb', () => {
     });
     expect(await values(db)).toEqual(['ok']);
   });
+
+  it('a failed COMMIT is rolled back and does not wedge later work', async () => {
+    const db = createTestDb();
+    await db.exec('PRAGMA foreign_keys = ON');
+    await db.exec('CREATE TABLE parent (id INTEGER PRIMARY KEY)');
+    await db.exec(
+      'CREATE TABLE child (id INTEGER PRIMARY KEY, pid INTEGER REFERENCES parent(id) DEFERRABLE INITIALLY DEFERRED)',
+    );
+    await db.exec('CREATE TABLE t (v TEXT)');
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.run('INSERT INTO child (pid) VALUES (999)');
+      }),
+    ).rejects.toThrow(/FOREIGN KEY/i);
+    await db.run('INSERT INTO t (v) VALUES (?)', ['after']);
+    await db.transaction(async (tx) => {
+      await tx.run('INSERT INTO t (v) VALUES (?)', ['tx']);
+    });
+    expect((await db.all<{ v: string }>('SELECT v FROM t ORDER BY v')).map((r) => r.v)).toEqual(['after', 'tx']);
+    expect(await db.all('SELECT * FROM child')).toEqual([]);
+  });
 });

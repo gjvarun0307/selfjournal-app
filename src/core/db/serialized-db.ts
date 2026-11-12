@@ -44,7 +44,13 @@ export function createSerializedDb(raw: RawDb): Db {
           await raw.exec('ROLLBACK').catch(() => undefined);
           throw e;
         }
-        await raw.exec('COMMIT');
+        try {
+          await raw.exec('COMMIT');
+        } catch (e) {
+          // A failed COMMIT can leave the transaction open; never release the queue inside it.
+          await raw.exec('ROLLBACK').catch(() => undefined);
+          throw e;
+        }
       }),
   };
 }

@@ -7,7 +7,6 @@ Plans run task-by-task with `superpowers:subagent-driven-development`; progress 
 ## Commands
 - `npm test` (jest) · `npx tsc --noEmit` · `npx expo lint` · `npx expo run:android` (dev build; needs a device/emulator).
 - `android/` and `ios/` are generated (CNG), not committed. After changing native config/plugins: `npx expo prebuild --clean`.
-- Port 8081 may be busy (another project's Metro) — start Metro on another port.
 - Install Expo packages with `npx expo install <pkg>`; non-Expo dev-only with `npm i -D`.
 - Expo APIs change per SDK: read docs for the `expo` major in `package.json` (https://docs.expo.dev/versions/v58.0.0/, https://docs.expo.dev/llms.txt). Never answer from memory.
 - Load the relevant installed expo skills (expo-overview, expo-router, expo-ui, expo-native-ui, expo-design-system, expo-animation) before UI/Expo work. Don't install new skills without asking the user.
@@ -42,6 +41,7 @@ Plans run task-by-task with `superpowers:subagent-driven-development`; progress 
 
 ## Gotchas
 - Inside `db.transaction(async tx => …)` use ONLY `tx`. Calling the outer `db` inside the callback deadlocks (the transaction holds the queue).
+- Never emit or await events inside `db.transaction`; emit after it commits. A handler in another plugin that uses `ctx.db` would wait on the transaction's queue while the transaction waits on the handler: deadlock.
 - Any RN `<Modal>` or `Alert` renders above the app-lock overlay. Screens that open one must close it when the app locks (`locked` from `useAppLock()`).
 - With app lock on, FLAG_SECURE (expo-screen-capture) blocks screenshots and Recents thumbnails. To check locked states on a device use `uiautomator dump`, not screencap.
 - Check DB encryption on device: `adb exec-out run-as app.selfjournal head -c 16 files/SQLite/selfjournal.db | xxd` must NOT start with "SQLite format 3". (The quoted `adb shell … sh -c '…'` form silently prints nothing.)

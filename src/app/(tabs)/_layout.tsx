@@ -1,8 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { Redirect, useSegments } from "expo-router";
 import { Tabs } from "expo-router/js-tabs";
 
 import { useEnabledPlugins } from "@/core/app-provider";
-import { visibleTabs } from "@/core/plugins/tabs";
+import { redirectTarget, tabRouteFromSegments, visibleTabs } from "@/core/plugins/tabs";
 import { ALL_PLUGINS } from "@/plugins";
 import { useTheme } from "@/theme/use-theme";
 
@@ -18,7 +19,14 @@ const ALL_TABS = visibleTabs(
 export default function TabsLayout() {
   const { colors } = useTheme();
   const enabled = useEnabledPlugins();
-  const visible = new Set(visibleTabs(ALL_PLUGINS, enabled).map((t) => t.route));
+  const visibleRoutes = visibleTabs(ALL_PLUGINS, enabled).map((t) => t.route);
+  const visible = new Set(visibleRoutes);
+  const segments = useSegments();
+
+  // A hidden tab's route still resolves (cold start lands on "/" = Journal; or its plugin was just
+  // turned off while open). Send the user to the first visible tab instead.
+  const target = redirectTarget(tabRouteFromSegments(segments), visibleRoutes);
+  if (target) return <Redirect href={target === "index" ? "/" : `/${target}`} />;
 
   return (
     <Tabs

@@ -44,9 +44,22 @@ async function bootServices(): Promise<AppServices> {
 const BOOT_KEY = "__selfjournalBoot";
 type BootGlobal = typeof globalThis & { [BOOT_KEY]?: Promise<AppServices> };
 
+function isKeyOrEncryptionError(error: unknown): boolean {
+  return error instanceof MissingDbKeyError || error instanceof DbKeyError || error instanceof EncryptionUnavailableError;
+}
+
 export function bootOnce(): Promise<AppServices> {
   const g = globalThis as BootGlobal;
-  g[BOOT_KEY] ??= bootServices();
+  if (!g[BOOT_KEY]) {
+    const promise = bootServices();
+    g[BOOT_KEY] = promise;
+    // Key/encryption failures are deterministic and must not be retried (a retry could mint a new key);
+    // anything else may be transient, so forget the failed boot and let the next mount try again.
+    promise.catch((error: unknown) => {
+      if (isKeyOrEncryptionError(error)) return;
+      if (g[BOOT_KEY] === promise) delete g[BOOT_KEY];
+    });
+  }
   return g[BOOT_KEY];
 }
 
@@ -106,7 +119,7 @@ export const UNLOCK_FAILED_MESSAGE = "SelfJournal can't unlock its data on this 
 export const ENCRYPTION_UNAVAILABLE_MESSAGE =
   "SelfJournal can't secure its data on this device, so it won't store anything. Nothing has been deleted.";
 export const BOOT_FAILED_MESSAGE =
-  "SelfJournal couldn't start just now. Nothing has been deleted. Try closing it and opening it again.";
+  "SelfJournal couldn't start just now. Nothing has been deleted. It will try again the next time it opens.";
 
 export function bootFailureMessage(error: unknown): string {
   if (error instanceof MissingDbKeyError || error instanceof DbKeyError) return UNLOCK_FAILED_MESSAGE;
