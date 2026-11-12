@@ -137,6 +137,36 @@ describe("MediaStore", () => {
     await expect(media.load(stale.id, "thumb")).rejects.toBeInstanceOf(MediaUnavailableError);
   });
 
+  it("sweep clears the image temp dirs first", async () => {
+    const { media } = await setup();
+    await media.sweep();
+    expect(media.prep.tempSweeps).toBe(1);
+  });
+
+  it("sweep leaves the image temp dirs alone while an import is in flight", async () => {
+    const { media } = await setup();
+    let release!: () => void;
+    media.prep.gate = new Promise((r) => (release = r));
+    const pending = media.importImage("file:///cache/ImagePicker/a.jpg");
+    await media.sweep();
+    expect(media.prep.tempSweeps).toBe(0);
+    release();
+    await pending;
+    await media.sweep();
+    expect(media.prep.tempSweeps).toBe(1);
+  });
+
+  it("a failed temp sweep warns and the rest of the sweep still runs", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { media } = await setup();
+    media.prep.failSweepTemp = true;
+    await media.files.write("orphan.full", new Uint8Array([1]));
+    await media.sweep();
+    expect(await media.files.list()).toEqual([]);
+    expect(warn).toHaveBeenCalledWith("[Media] could not clear image temp files", expect.any(Error));
+    warn.mockRestore();
+  });
+
   it("load of a missing file rejects with MediaUnavailableError", async () => {
     const { media } = await setup();
     const rec = await media.importImage("file:///cache/a.jpg");

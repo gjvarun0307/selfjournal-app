@@ -27,7 +27,7 @@ export interface MediaStore {
   load(id: string, size: MediaSize): Promise<string>;
   /** Deletes rows, then files. Unknown ids are ignored. */
   remove(ids: string[]): Promise<void>;
-  /** Removes pending rows older than 24 h (and their files) and files with no row. */
+  /** Clears image temp files (unless an import is running), then removes pending rows older than 24 h (and their files) and files with no row. */
   sweep(): Promise<void>;
 }
 
@@ -47,4 +47,6 @@ export interface MediaFiles {
 export interface ImagePrep {
   prepare(uri: string, maxEdge: number, compress: number): Promise<{ bytes: Uint8Array; width: number; height: number }>;
   discard(uri: string): Promise<void>;
+  /** Deletes leftover plaintext temp files from the image picker and manipulator (e.g. after a crash mid-import). */
+  sweepTemp?(): Promise<void>;
 }

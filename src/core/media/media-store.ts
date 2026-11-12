@@ -67,6 +67,8 @@ export function createMediaStore(deps: MediaStoreDeps): MediaStore {
   const caches: Record<MediaSize, Lru> = { thumb: new Lru(CACHE_LIMIT.thumb), full: new Lru(CACHE_LIMIT.full) };
   /** Ids whose files are being written but whose row is not inserted yet; sweep must not treat them as orphans. */
   const inFlight = new Set<string>();
+  /** Imports running right now, from the first prepare on; their temp files must survive a sweep. */
+  let importing = 0;
   /** Bumped by remove() so a load that started before it never re-caches a removed photo. */
   let generation = 0;
 
@@ -110,6 +112,7 @@ export function createMediaStore(deps: MediaStoreDeps): MediaStore {
   return {
     async importImage(sourceUri) {
       let id: string | null = null;
+      importing++;
       try {
         const full = await prep.prepare(sourceUri, FULL_MAX_EDGE, FULL_COMPRESS);
         const thumb = await prep.prepare(sourceUri, THUMB_MAX_EDGE, THUMB_COMPRESS);
@@ -131,6 +134,7 @@ export function createMediaStore(deps: MediaStoreDeps): MediaStore {
         if (id) await removeFiles(id);
         throw e;
       } finally {
+        importing--;
         if (id) inFlight.delete(id);
         try {
           await prep.discard(sourceUri);
@@ -175,6 +179,14 @@ export function createMediaStore(deps: MediaStoreDeps): MediaStore {
     remove,
 
     async sweep() {
+      // Picker/manipulator copies are plaintext; one left by a crash mid-import must not outlive the next launch.
+      if (importing === 0 && inFlight.size === 0) {
+        try {
+          await prep.sweepTemp?.();
+        } catch (e) {
+          console.warn("[Media] could not clear image temp files", e);
+        }
+      }
       const stale = await db.all<{ id: string }>("SELECT id FROM media WHERE pending = 1 AND created_at < ?", [
         now() - PENDING_TTL_MS,
       ]);

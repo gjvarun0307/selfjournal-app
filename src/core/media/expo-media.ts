@@ -62,6 +62,9 @@ function deleteIfCached(uri: string): void {
   if (f.exists) f.delete();
 }
 
+/** Cache subdirs where expo-image-picker and expo-image-manipulator leave plaintext copies. */
+const TEMP_DIRS = ["ImagePicker", "ImageManipulator"];
+
 export const expoImagePrep: ImagePrep = {
   async prepare(uri, maxEdge, compress) {
     // The load options downsample while decoding and never upscale.
@@ -73,8 +76,13 @@ export const expoImagePrep: ImagePrep = {
         const bytes = await new File(saved.uri).bytes();
         return { bytes, width: saved.width, height: saved.height };
       } finally {
-        // The saved JPEG is plaintext in the cache dir: remove it as soon as its bytes are in memory.
-        deleteIfCached(saved.uri);
+        // The saved JPEG is the manipulator's own plaintext temp file: remove it as soon as its bytes are in memory.
+        try {
+          const f = new File(saved.uri);
+          if (f.exists) f.delete();
+        } catch (e) {
+          console.warn("[Media] could not delete the resized copy", e);
+        }
       }
     } finally {
       image.release();
@@ -83,6 +91,13 @@ export const expoImagePrep: ImagePrep = {
   },
   async discard(uri) {
     deleteIfCached(uri);
+  },
+  async sweepTemp() {
+    for (const name of TEMP_DIRS) {
+      const dir = new Directory(Paths.cache, name);
+      if (!dir.exists) continue;
+      for (const entry of dir.list()) entry.delete();
+    }
   },
 };
 

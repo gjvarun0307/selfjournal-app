@@ -63,6 +63,12 @@ export function createMemoryMediaFiles(): MemoryMediaFiles {
 export interface FakeImagePrep extends ImagePrep {
   prepared: { uri: string; maxEdge: number; bytes: Uint8Array; width: number; height: number }[];
   discarded: string[];
+  /** How many times `sweepTemp` ran. */
+  tempSweeps: number;
+  /** When set, `prepare` waits for it, so a test can hold an import mid-flight. */
+  gate?: Promise<void>;
+  /** Return true to make `sweepTemp` reject. */
+  failSweepTemp?: boolean;
 }
 
 /** Pretends every source is a 4000x3000 photo and returns JPEG-like bytes that differ per call. */
@@ -71,7 +77,9 @@ export function createFakeImagePrep(): FakeImagePrep {
   const prep: FakeImagePrep = {
     prepared: [],
     discarded: [],
+    tempSweeps: 0,
     async prepare(uri, maxEdge) {
+      if (prep.gate) await prep.gate;
       const scale = Math.min(1, maxEdge / 4000);
       const width = Math.round(4000 * scale);
       const height = Math.round(3000 * scale);
@@ -82,6 +90,10 @@ export function createFakeImagePrep(): FakeImagePrep {
     },
     async discard(uri) {
       prep.discarded.push(uri);
+    },
+    async sweepTemp() {
+      prep.tempSweeps++;
+      if (prep.failSweepTemp) throw new Error("temp sweep failed");
     },
   };
   return prep;
