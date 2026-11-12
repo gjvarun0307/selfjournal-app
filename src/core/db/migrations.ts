@@ -16,9 +16,9 @@ export async function runMigrations(db: Db, migrations: Migration[]): Promise<st
   const applied: string[] = [];
   for (const m of migrations) {
     if (done.has(m.id)) continue;
-    await db.transaction(async () => {
-      await db.exec(m.up);
-      await db.run('INSERT INTO _migrations (id, applied_at) VALUES (?, ?)', [
+    await db.transaction(async (tx) => {
+      await tx.exec(m.up);
+      await tx.run('INSERT INTO _migrations (id, applied_at) VALUES (?, ?)', [
         m.id,
         new Date().toISOString(),
       ]);

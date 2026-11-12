@@ -5,5 +5,5 @@ export interface Db {
   run(sql: string, params?: SqlParam[]): Promise<{ changes: number; lastInsertRowId: number }>;
   all<T>(sql: string, params?: SqlParam[]): Promise<T[]>;
   first<T>(sql: string, params?: SqlParam[]): Promise<T | null>;
-  transaction(fn: () => Promise<void>): Promise<void>;
+  transaction(fn: (tx: Db) => Promise<void>): Promise<void>;
 }

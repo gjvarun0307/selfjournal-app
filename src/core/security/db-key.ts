@@ -32,6 +32,14 @@ export class DbKeyError extends Error {
   }
 }
 
+/** SQLCipher is not active in this build; refusing to store data in plaintext. */
+export class EncryptionUnavailableError extends Error {
+  constructor() {
+    super('SQLCipher is unavailable; refusing to open an unencrypted database.');
+    this.name = 'EncryptionUnavailableError';
+  }
+}
+
 // @noble/hashes v2 is ESM-only and does not load under Jest; a tiny helper avoids it.
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
