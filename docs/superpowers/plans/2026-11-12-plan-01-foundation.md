@@ -144,16 +144,16 @@ git add -A && git commit -m "chore: scaffold Expo app with dev client, Jest, SQL
   - `runMigrations(db: Db, migrations: Migration[]): Promise<string[]>`. Applies in array order those not yet in `_migrations(id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`, each in its own transaction together with its `_migrations` insert. Returns the ids applied.
   - `CORE_MIGRATIONS: Migration[]`, `core:001` creates `app_settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)` and `plugin_state(id TEXT PRIMARY KEY, enabled INTEGER NOT NULL)`.
 
-- [ ] **Step 1: Write failing tests** in `migrations.test.ts`:
+- [x] **Step 1: Write failing tests** in `migrations.test.ts`:
   - `applies pending migrations in order and records them`: run `[a, b]` → returns `['t:001','t:002']`; tables exist; `_migrations` has 2 rows.
   - `is idempotent`: second `runMigrations` with same list → returns `[]`.
   - `rolls back a failing migration without recording it` (Review Focus 1): list `[ok, bad]`, where `bad.up` = `"CREATE TABLE half(x INT); INSERT INTO nope VALUES (1);"`. Expect rejection; `_migrations` contains only `ok`'s id; table `half` does **not** exist.
   - `CORE_MIGRATIONS create app_settings and plugin_state`.
 
-- [ ] **Step 2: Run** `npx jest src/core/db` → FAIL (modules missing).
-- [ ] **Step 3: Implement** the four files per Interfaces.
-- [ ] **Step 4: Run** `npx jest src/core/db` → PASS.
-- [ ] **Step 5: Commit** `feat(core): Db interface, test adapter, transactional migrations`.
+- [x] **Step 2: Run** `npx jest src/core/db` → FAIL (modules missing).
+- [x] **Step 3: Implement** the four files per Interfaces.
+- [x] **Step 4: Run** `npx jest src/core/db` → PASS.
+- [x] **Step 5: Commit** `feat(core): Db interface, test adapter, transactional migrations`.
 
 ---
 
