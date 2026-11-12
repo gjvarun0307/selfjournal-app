@@ -44,6 +44,7 @@ function RootStack() {
         <Stack.Screen name="settings/index" options={{ title: "Settings" }} />
         <Stack.Screen name="settings/plugins" options={{ title: "Plugins" }} />
         <Stack.Screen name="settings/app-lock" options={{ title: "App lock" }} />
+        <Stack.Screen name="settings/reminders" options={{ title: "Reminders" }} />
         <Stack.Screen name="journal/new" options={{ title: "New entry" }} />
         <Stack.Screen name="journal/edit" options={{ title: "Entry" }} />
         <Stack.Screen name="journal/[id]" options={{ title: "Entry" }} />

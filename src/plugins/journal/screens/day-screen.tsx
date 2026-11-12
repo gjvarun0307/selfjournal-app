@@ -1,12 +1,15 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
 
-import { useHost } from "@/core/app-provider";
+import { useHost, usePluginContext } from "@/core/app-provider";
+import { useAppLock } from "@/screens/lock";
 import { useTheme } from "@/theme/use-theme";
 import { dayLabel, shiftDay, type DayKey } from "../days";
 import type { JournalEntry } from "../journal-service";
+import { expoNotifier } from "../notifier";
+import { askOnce } from "../reminder";
 import { useJournal } from "../use-journal";
 import { useToday } from "../use-today";
 import { EntryCard } from "./entry-card";
@@ -18,6 +21,16 @@ export function JournalDayScreen() {
   const host = useHost();
   const journal = useJournal();
   const today = useToday();
+  const ctx = usePluginContext("journal");
+  const { withSystemPrompt } = useAppLock();
+  const askedRef = useRef(false);
+
+  // Ask about the daily reminder once, the first time the journal opens.
+  useEffect(() => {
+    if (askedRef.current) return;
+    askedRef.current = true;
+    askOnce(ctx.settings, expoNotifier, withSystemPrompt).catch((e) => console.warn("Reminder permission", e));
+  }, [ctx, withSystemPrompt]);
   // null = follow today, so the screen moves on when the date rolls over.
   const [picked, setPicked] = useState<DayKey | null>(null);
   const day = picked ?? today;

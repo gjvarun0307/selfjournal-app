@@ -2,6 +2,8 @@ import type { PluginDefinition } from "@/core/plugins/types";
 
 import type { DayKey } from "./days";
 import { journalEntryTypes } from "./entry-types";
+import { expoNotifier } from "./notifier";
+import { REMINDER_ID, syncReminder } from "./reminder";
 
 declare module "@/core/events/types" {
   interface AppEvents {
@@ -16,6 +18,12 @@ export const journalPlugin: PluginDefinition = {
   icon: "book",
   tab: { route: "index", title: "Journal", icon: "book", order: 10 },
   entryTypes: journalEntryTypes,
+  activate(ctx) {
+    syncReminder(ctx.settings, expoNotifier).catch((e) => console.warn("Could not sync the daily reminder", e));
+    return () => {
+      expoNotifier.cancel(REMINDER_ID).catch((e) => console.warn("Could not cancel the daily reminder", e));
+    };
+  },
   migrations: [
     {
       id: "journal:001",

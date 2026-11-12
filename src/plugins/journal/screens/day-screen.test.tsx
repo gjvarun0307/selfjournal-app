@@ -6,10 +6,24 @@ import { createTestServices } from "@/core/test-services";
 import { ALL_PLUGINS } from "@/plugins";
 import { dayKey, shiftDay } from "../days";
 import { getJournalService } from "../journal-service";
-import { JournalDayScreen } from "./day-screen";
+import { expoNotifier } from "../notifier";
+import { EMPTY_DAY_COPY, JournalDayScreen } from "./day-screen";
 
 let mockId = 0;
 jest.mock("expo-crypto", () => ({ randomUUID: () => `entry-${++mockId}` }));
+
+jest.mock("@/screens/lock", () => ({
+  useAppLock: () => ({ locked: false, withSystemPrompt: <T,>(p: () => Promise<T>) => p() }),
+}));
+
+jest.mock("../notifier", () => ({
+  expoNotifier: {
+    permission: jest.fn().mockResolvedValue("undetermined"),
+    request: jest.fn().mockResolvedValue("granted"),
+    scheduleDaily: jest.fn().mockResolvedValue(undefined),
+    cancel: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 
 const mockPush = jest.fn();
 jest.mock("expo-router", () => {
@@ -61,6 +75,15 @@ describe("JournalDayScreen", () => {
 
     await fireEvent.press(screen.getByLabelText("Today"));
     expect(await screen.findByText("First thoughts")).toBeTruthy();
+  });
+
+  it("asks about the daily reminder once on mount", async () => {
+    const { view } = await setup();
+    jest.mocked(expoNotifier.request).mockClear();
+    await view();
+    await screen.findByText(EMPTY_DAY_COPY);
+    await act(async () => undefined);
+    expect(expoNotifier.request).toHaveBeenCalledTimes(1);
   });
 
   it("renders an entry of an unknown type as a plain 'Entry' card", async () => {
