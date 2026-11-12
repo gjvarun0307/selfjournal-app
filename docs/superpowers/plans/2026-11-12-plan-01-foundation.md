@@ -261,9 +261,9 @@ git add -A && git commit -m "chore: scaffold Expo app with dev client, Jest, SQL
   - `useTheme(): { colors: ColorTokens; space; radius; font; scheme: "light" | "dark" }` via `useColorScheme()`
 - Colour values: builder's choice. The direction is warm and paper-ish, to match the journal.
 
-- [ ] **Step 1: Write failing test** `light and dark define the same keys and no red-family accent`: same key sets; `caution` is not pure red. Its hue, computed from the hex, falls outside 345°–15°.
-- [ ] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** → PASS.
-- [ ] **Step 5: Commit** `feat(theme): design tokens and useTheme`.
+- [x] **Step 1: Write failing test** `light and dark define the same keys and no red-family accent`: same key sets; `caution` is not pure red. Its hue, computed from the hex, falls outside 345°–15°.
+- [x] **Step 2: Run** → FAIL. **Step 3: Implement.** **Step 4: Run** → PASS.
+- [x] **Step 5: Commit** `feat(theme): design tokens and useTheme`.
 
 ---
 
