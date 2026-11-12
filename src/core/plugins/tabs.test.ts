@@ -14,6 +14,14 @@ describe("visibleTabs", () => {
   });
 });
 
+describe("visibleTabs Me tab", () => {
+  it("returns a fresh Me tab each call", () => {
+    const first = visibleTabs([], []);
+    first[first.length - 1].title = "changed";
+    expect(visibleTabs([], [])[0].title).toBe("Me");
+  });
+});
+
 describe("redirectTarget", () => {
   it("stays put when the current tab is visible or outside the tabs", () => {
     expect(redirectTarget("habits", ["habits", "me"])).toBeNull();

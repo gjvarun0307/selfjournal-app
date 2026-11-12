@@ -33,3 +33,25 @@ export function createAppSettings(db: Db): AppSettings {
     },
   };
 }
+
+/** A view of `settings` where every key is stored as `prefix + key`. */
+export function scopedSettings(settings: AppSettings, prefix: string): AppSettings {
+  const k = (key: string) => {
+    if (!key) throw new Error("Setting key must not be empty");
+    return prefix + key;
+  };
+  return {
+    async get(key) {
+      return settings.get(k(key));
+    },
+    async set(key, value) {
+      await settings.set(k(key), value);
+    },
+    async delete(key) {
+      await settings.delete(k(key));
+    },
+    async setMany(entries) {
+      await settings.setMany(Object.fromEntries(Object.entries(entries).map(([key, value]) => [k(key), value])));
+    },
+  };
+}

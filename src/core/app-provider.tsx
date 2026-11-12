@@ -4,6 +4,7 @@ import { ActivityIndicator, Text, View } from "react-native";
 import { openEncryptedDb } from "@/core/db/expo-db";
 import { EventBus } from "@/core/events/bus";
 import { PluginHost } from "@/core/plugins/host";
+import type { PluginContext } from "@/core/plugins/types";
 import { useEnabledIds } from "@/core/plugins/use-enabled-ids";
 import {
   DbKeyError,
@@ -105,6 +106,10 @@ export function useHost(): PluginHost {
 
 export function useAppSettings(): AppSettings {
   return useServices("useAppSettings").settings;
+}
+
+export function usePluginContext(id: string): PluginContext {
+  return useServices("usePluginContext").host.contextFor(id);
 }
 
 export function useBus(): EventBus {

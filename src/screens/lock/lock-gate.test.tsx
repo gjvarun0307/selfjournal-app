@@ -7,11 +7,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AppProvider, type AppServices } from "@/core/app-provider";
 import { CORE_MIGRATIONS } from "@/core/db/core-migrations";
 import { runMigrations } from "@/core/db/migrations";
-import { createTestDb } from "@/core/db/test-db";
-import { EventBus } from "@/core/events/bus";
 import { PluginHost } from "@/core/plugins/host";
 import { createAppLockStore, type AppLockStore } from "@/core/security/app-lock-store";
-import { createAppSettings } from "@/core/settings/app-settings";
+import { createTestServices } from "@/core/test-services";
 import { ALL_PLUGINS } from "@/plugins";
 import { AppLockedError, LockGate, NO_DEVICE_CREDENTIAL_MESSAGE, useAppLock, WRONG_PIN_MESSAGE, type AppLock } from "./index";
 
@@ -38,14 +36,13 @@ const SALT = "0123456789abcdef0123456789abcdef";
 const METRICS = { frame: { x: 0, y: 0, width: 400, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
 
 async function setup({ pin }: { pin?: string } = {}) {
-  const db = createTestDb();
-  await runMigrations(db, CORE_MIGRATIONS);
-  const settings = createAppSettings(db);
+  const core = createTestServices();
+  const { bus, settings } = core;
+  await runMigrations(core.db, CORE_MIGRATIONS);
   const store = createAppLockStore(settings);
   if (pin) await store.setPin(pin, SALT);
   await store.markOnboarded();
-  const bus = new EventBus({ onError: jest.fn() });
-  const host = new PluginHost(ALL_PLUGINS, { db, bus, settings }, { onError: jest.fn() });
+  const host = new PluginHost(ALL_PLUGINS, core, { onError: jest.fn() });
   const services: AppServices = { host, bus, settings };
   return { services, store };
 }

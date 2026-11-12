@@ -6,11 +6,11 @@ SelfJournal is local-only and plugin-based. Features live in plugins under `src/
 `npm install`, `npm test`, `npx tsc --noEmit`, then `npx expo run:android` for a dev build. Install Expo packages with `npx expo install <pkg>`.
 
 ## Adding a plugin
-1. Create `src/plugins/<id>/index.ts` exporting a `PluginDefinition` (`id`, `name`, `description`, `icon`, optional `migrations`, `tab`, `activate`). `PluginTab.route` is a closed union and tab routes are fixed files, so a plugin that needs a new tab also needs a small core edit: add the route to the union in `src/core/plugins/types.ts` and a `src/app/(tabs)/<route>.tsx` file.
+1. Create `src/plugins/<id>/index.ts` exporting a `PluginDefinition` (`id`, `name`, `description`, `icon`, optional `migrations`, `tab`, `activate`). Tab routes are fixed files, so a plugin that needs a new tab also needs a small core edit: append the route to `TAB_ROUTES` in `src/core/plugins/tab-routes.ts` and add `src/app/(tabs)/<route>.tsx` (a test enforces that every route has a file).
 2. Add it to `ALL_PLUGINS` in `src/plugins/index.ts`.
 3. Put its tables in `migrations` with ids `<id>:NNN` (e.g. `notes:001`). Migrations always run, even when the plugin is turned off; turning a plugin off keeps its data. Never edit an applied migration.
 4. Declare events by augmenting `AppEvents` with `declare module "@/core/events/types"`.
-5. `activate(ctx)` receives `{ db, bus, settings }`. Subscribe with `ctx.bus.on(...)` and return a cleanup that unsubscribes.
+5. `activate(ctx)` receives `ctx = { pluginId, db, bus, settings }`. `ctx.settings` is private to the plugin (keys are stored under `plugin.<id>.`). Subscribe with `ctx.bus.on(...)`: the host drops every subscription automatically when the plugin is turned off, and a plugin that is off cannot subscribe or emit. A returned cleanup is only for other resources (timers, listeners); you don't need one for bus subscriptions.
 6. Never import another plugin. Talk to other plugins only through `EventBus`.
 7. Inside `db.transaction(async tx => …)` use only `tx`, never the outer `db`. Never emit or await events inside `db.transaction`; emit after it commits (another plugin's handler using `ctx.db` would deadlock).
 8. Colours, spacing, radii and fonts come from `src/theme/tokens.ts`. Add colocated `*.test.ts(x)` tests.
@@ -32,7 +32,7 @@ export const notesPlugin: PluginDefinition = {
   icon: "document-text",
   migrations: [{ id: "notes:001", up: "CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL);" }],
   activate({ db, bus }) {
-    return bus.on("notes.saved", async ({ id }) => {
+    bus.on("notes.saved", async ({ id }) => {
       await db.run("UPDATE notes SET body = trim(body) WHERE id = ?", [id]);
     });
   },

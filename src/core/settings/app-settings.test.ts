@@ -1,7 +1,7 @@
 import { createTestDb, failWritesTo } from "@/core/db/test-db";
 import { runMigrations } from "@/core/db/migrations";
 import { CORE_MIGRATIONS } from "@/core/db/core-migrations";
-import { createAppSettings } from "./app-settings";
+import { createAppSettings, scopedSettings } from "./app-settings";
 
 async function migratedDb() {
   const db = createTestDb();
@@ -39,5 +39,15 @@ describe("AppSettings", () => {
 
     expect(await s.get("a")).toBe("old-a");
     expect(await s.get("b")).toBe("old-b");
+  });
+
+  it("scopedSettings prefixes keys and cannot see other keys", async () => {
+    const base = createAppSettings(await migratedDb());
+    await base.set("lock.pinHash", "secret");
+    const s = scopedSettings(base, "plugin.journal.");
+    await s.setMany({ "reminder.time": "20:00" });
+    expect(await base.get("plugin.journal.reminder.time")).toBe("20:00");
+    expect(await s.get("lock.pinHash")).toBeNull();
+    await expect(s.set("", "x")).rejects.toThrow();
   });
 });
