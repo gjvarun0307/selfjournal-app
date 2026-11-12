@@ -1,3 +1,5 @@
+import { validateEntryTypes } from "@/core/entry-types/validate";
+import type { EntryTypeDefinition } from "@/core/entry-types/types";
 import { CORE_MIGRATIONS } from "@/core/db/core-migrations";
 import { runMigrations } from "@/core/db/migrations";
 import { scopedSettings } from "@/core/settings/app-settings";
@@ -22,8 +24,16 @@ export class PluginHost {
     private services: CoreServices,
     opts: PluginHostOptions = {},
   ) {
+    const typeIds = new Set<string>();
     for (const d of defs) {
       if (this.defs.has(d.id)) throw new Error(`Duplicate plugin id: ${d.id}`);
+      if (d.entryTypes) {
+        validateEntryTypes(d.id, d.entryTypes);
+        for (const t of d.entryTypes) {
+          if (typeIds.has(t.id)) throw new Error(`Duplicate entry type id: ${t.id}`);
+          typeIds.add(t.id);
+        }
+      }
       this.defs.set(d.id, d);
       this.contexts.set(d.id, this.buildContext(d.id));
     }
@@ -101,6 +111,20 @@ export class PluginHost {
 
   list(): PluginDefinition[] {
     return [...this.defs.values()];
+  }
+
+  /** Entry types of enabled plugins, in plugin order. */
+  entryTypes(): EntryTypeDefinition[] {
+    return this.enabledIds().flatMap((id) => this.defs.get(id)!.entryTypes ?? []);
+  }
+
+  /** Looks up a type across all plugins, enabled or not. */
+  entryType(id: string): EntryTypeDefinition | undefined {
+    for (const d of this.defs.values()) {
+      const t = d.entryTypes?.find((x) => x.id === id);
+      if (t) return t;
+    }
+    return undefined;
   }
 
   enabledIds(): string[] {

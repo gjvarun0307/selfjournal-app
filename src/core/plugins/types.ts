@@ -3,6 +3,7 @@ import type { Migration } from "@/core/db/migrations";
 import type { EventBus } from "@/core/events/bus";
 import type { AppEvents, EventHandler } from "@/core/events/types";
 import type { AppSettings } from "@/core/settings/app-settings";
+import type { EntryTypeDefinition } from "@/core/entry-types/types";
 import type { TabRoute } from "./tab-routes";
 
 /** Event bus as a plugin sees it: the host owns the subscriptions and drops them when the plugin is turned off. */
@@ -40,6 +41,8 @@ export interface PluginDefinition {
   icon: string;
   migrations?: Migration[];
   tab?: PluginTab;
+  /** Entry types this plugin contributes. Ids must be `<pluginId>.<name>`. */
+  entryTypes?: EntryTypeDefinition[];
   /** Subscribe via `ctx.bus.on` (dropped automatically on disable). A returned cleanup is only for other resources. */
   activate?(ctx: PluginContext): (() => void) | void;
 }

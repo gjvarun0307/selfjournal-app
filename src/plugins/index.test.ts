@@ -15,4 +15,11 @@ describe("ALL_PLUGINS", () => {
     expect(byId.gamification.tab).toBeUndefined();
     expect(byId.lifestats.tab).toBeUndefined();
   });
+
+  it("declares the eight built-in entry types in order", () => {
+    expect(ALL_PLUGINS.flatMap((p) => p.entryTypes ?? []).map((t) => t.id)).toEqual([
+      "journal.day", "journal.game", "journal.cooked", "journal.outing", "journal.feelings",
+      "habits.win", "recovery.note", "recovery.slip",
+    ]);
+  });
 });

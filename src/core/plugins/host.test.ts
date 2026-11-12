@@ -207,4 +207,36 @@ describe("PluginHost", () => {
     expect(activate).toHaveBeenCalledTimes(1);
     expect(cleanup).toHaveBeenCalledTimes(1);
   });
+  describe("entry types", () => {
+    const et = (id: string) => ({
+      id,
+      name: id,
+      description: id,
+      icon: "book",
+      fields: [{ key: "t", label: "T", kind: "text" as const }],
+      photos: false,
+      card: { variant: "note" as const, tint: "sage" as const },
+      templateId: id.split(".")[1],
+    });
+    const withTypes = (id: string, names: string[]): PluginDefinition => ({
+      ...plain(id),
+      entryTypes: names.map((n) => et(`${id}.${n}`)),
+    });
+
+    it("entryTypes() excludes disabled plugins; entryType() still finds them", async () => {
+      const { ctx } = setup();
+      const host = new PluginHost([withTypes("a", ["x"]), withTypes("b", ["y"])], ctx);
+      await host.start();
+      await host.setEnabled("b", false);
+      expect(host.entryTypes().map((t) => t.id)).toEqual(["a.x"]);
+      expect(host.entryType("b.y")?.id).toBe("b.y");
+      expect(host.entryType("nope.z")).toBeUndefined();
+    });
+
+    it("throws when two plugins share a type id", () => {
+      const { ctx } = setup();
+      const dup = { ...withTypes("b", []), entryTypes: [et("a.x")] };
+      expect(() => new PluginHost([withTypes("a", ["x"]), dup], ctx)).toThrow();
+    });
+  });
 });
