@@ -134,6 +134,7 @@ function EditorForm({ draft, isNew }: { draft: Draft; isNew: boolean }) {
   const [saving, setSaving] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [picking, setPicking] = useState(false);
   const [photoNote, setPhotoNote] = useState<string | null>(null);
   const [leaveAction, setLeaveAction] = useState<LeaveAction | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -143,6 +144,10 @@ function EditorForm({ draft, isNew }: { draft: Draft; isNew: boolean }) {
   // Refs guard against double taps landing before the next render.
   const savingRef = useRef(false);
   const importingRef = useRef(false);
+  /** Set from the first "Add photos" tap until the picker and its imports are done. */
+  const busyRef = useRef(false);
+  /** The draft's photos as of the last change, for capacity checks inside async handlers. */
+  const photosRef = useRef(draft.initialPhotos);
   const goneRef = useRef(false);
   /** Media imported in this session and not yet saved: removed if the user leaves. */
   const importedRef = useRef<string[]>([]);
@@ -172,12 +177,27 @@ function EditorForm({ draft, isNew }: { draft: Draft; isNew: boolean }) {
   };
 
   const addPhotos = async () => {
-    if (importingRef.current) return;
-    const limit = MAX_PHOTOS - photos.length;
-    if (limit <= 0) return;
+    // Busy from the first tap: the picker takes a moment to cover the screen.
+    if (busyRef.current) return;
+    if (MAX_PHOTOS - photosRef.current.length <= 0) return;
+    busyRef.current = true;
+    setPicking(true);
     setPhotoNote(null);
-    const uris = (await pickImages(limit)).slice(0, limit);
-    if (uris.length === 0 || goneRef.current) return;
+    let picked: string[];
+    try {
+      picked = await pickImages(MAX_PHOTOS - photosRef.current.length);
+    } catch {
+      picked = [];
+      if (!goneRef.current) setPhotoNote("Photos couldn't be opened just now.");
+    } finally {
+      if (!goneRef.current) setPicking(false);
+    }
+    // Re-check the room left now the picker is closed (some pickers ignore selectionLimit).
+    const uris = picked.slice(0, Math.max(0, MAX_PHOTOS - photosRef.current.length));
+    if (uris.length === 0 || goneRef.current) {
+      busyRef.current = false;
+      return;
+    }
     importingRef.current = true;
     setImporting(true);
     let failed = 0;
@@ -190,19 +210,22 @@ function EditorForm({ draft, isNew }: { draft: Draft; isNew: boolean }) {
           continue;
         }
         importedRef.current.push(rec.id);
-        setPhotos((p) => [...p, rec.id]);
+        photosRef.current = [...photosRef.current, rec.id];
+        setPhotos(photosRef.current);
       } catch {
         failed++;
       }
     }
     importingRef.current = false;
+    busyRef.current = false;
     if (goneRef.current) return;
     setImporting(false);
     if (failed > 0) setPhotoNote(failed === 1 ? "One photo couldn't be added." : "Some photos couldn't be added.");
   };
 
   const removePhoto = (id: string) => {
-    setPhotos((p) => p.filter((x) => x !== id));
+    photosRef.current = photosRef.current.filter((x) => x !== id);
+    setPhotos(photosRef.current);
     setPhotoNote(null);
     // A photo added in this session was never saved, so it can go now. A saved one stays until the
     // edit is saved (the journal removes it then), so leaving without saving keeps it.
@@ -213,7 +236,7 @@ function EditorForm({ draft, isNew }: { draft: Draft; isNew: boolean }) {
   };
 
   const save = async () => {
-    if (savingRef.current || done || importingRef.current) return;
+    if (savingRef.current || done || busyRef.current) return;
     const result = normalizeFields(type, values, photos.length);
     if (result.empty) return;
     if (Object.keys(result.errors).length > 0) {
@@ -258,7 +281,7 @@ function EditorForm({ draft, isNew }: { draft: Draft; isNew: boolean }) {
     navigation.dispatch(leaveAction);
   };
 
-  const saveDisabled = normalized.empty || saving || importing;
+  const saveDisabled = normalized.empty || saving || importing || picking;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
@@ -298,7 +321,14 @@ function EditorForm({ draft, isNew }: { draft: Draft; isNew: boolean }) {
         ))}
 
         {type.photos ? (
-          <PhotoEditor photoIds={photos} importing={importing} note={photoNote} onAdd={addPhotos} onRemove={removePhoto} />
+          <PhotoEditor
+            photoIds={photos}
+            importing={importing}
+            picking={picking}
+            note={photoNote}
+            onAdd={addPhotos}
+            onRemove={removePhoto}
+          />
         ) : null}
       </ScrollView>
 

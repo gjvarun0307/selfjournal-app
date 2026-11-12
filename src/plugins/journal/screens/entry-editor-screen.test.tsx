@@ -224,6 +224,55 @@ describe("EntryEditorScreen", () => {
     expect(mockPick).toHaveBeenCalledWith(2);
   });
 
+  it("imports no more picks than there is room for", async () => {
+    const { core, journal, editor } = await setup();
+    const photoIds: string[] = [];
+    for (let i = 0; i < 10; i++) photoIds.push((await core.media.importImage(`file:///cache/${i}.jpg`)).id);
+    const entry = await journal.create({ day: day(), typeId: "journal.day", fields: { text: "Ten" }, photoIds });
+    const importImage = jest.spyOn(core.media, "importImage");
+    // A picker that ignores selectionLimit.
+    mockPick.mockResolvedValue(["file:///cache/x1.jpg", "file:///cache/x2.jpg", "file:///cache/x3.jpg", "file:///cache/x4.jpg"]);
+    await editor({ kind: "edit", id: entry.id });
+
+    await fireEvent.press(await screen.findByLabelText("Add photos"));
+    expect(importImage.mock.calls.map((c) => c[0])).toEqual(["file:///cache/x1.jpg", "file:///cache/x2.jpg"]);
+    expect(await screen.findAllByTestId("media-image")).toHaveLength(12);
+  });
+
+  it("a quick double tap on Add photos opens the picker once", async () => {
+    const { editor } = await setup();
+    const openPickers: ((uris: string[]) => void)[] = [];
+    mockPick.mockImplementation(() => new Promise<string[]>((r) => openPickers.push(r)));
+    await editor({ kind: "new", day: day(), typeId: "journal.day" });
+
+    const first = fireEvent.press(await screen.findByLabelText("Add photos"));
+    await settle();
+    const second = fireEvent.press(screen.getByLabelText("Add photos"));
+    await settle();
+    await act(async () => {
+      for (const close of openPickers) close([]);
+      await Promise.all([first, second]);
+    });
+    expect(mockPick).toHaveBeenCalledTimes(1);
+    // The button works again once the picker has closed.
+    mockPick.mockResolvedValue([]);
+    await fireEvent.press(screen.getByLabelText("Add photos"));
+    expect(mockPick).toHaveBeenCalledTimes(2);
+  });
+
+  it("a picker that fails shows a calm note and keeps the draft", async () => {
+    const { editor } = await setup();
+    mockPick.mockRejectedValue(new Error("activity not found"));
+    await editor({ kind: "new", day: day(), typeId: "journal.day" });
+    await fireEvent.changeText(await screen.findByLabelText("How was the day?"), "Quiet");
+
+    // Would throw here if the handler's promise rejected.
+    await fireEvent.press(screen.getByLabelText("Add photos"));
+    expect(screen.getByText("Photos couldn't be opened just now.")).toBeTruthy();
+    expect(screen.getByDisplayValue("Quiet")).toBeTruthy();
+    expect(screen.getByLabelText("Add photos").props.accessibilityState).toMatchObject({ disabled: false });
+  });
+
   it("editing keeps fields the type doesn't know about", async () => {
     const { journal, editor } = await setup();
     const entry = await journal.create({

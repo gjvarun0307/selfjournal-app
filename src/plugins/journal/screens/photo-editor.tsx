@@ -10,12 +10,15 @@ export const MAX_PHOTOS = 12;
 export function PhotoEditor({
   photoIds,
   importing,
+  picking = false,
   note,
   onAdd,
   onRemove,
 }: {
   photoIds: string[];
   importing: boolean;
+  /** The system picker is opening or open. */
+  picking?: boolean;
   note: string | null;
   onAdd: () => void;
   onRemove: (id: string) => void;
@@ -23,7 +26,7 @@ export function PhotoEditor({
   const { colors, space, radius, font } = useTheme();
   const thumb = space.xxl * 3;
   const full = photoIds.length >= MAX_PHOTOS;
-  const addDisabled = full || importing;
+  const addDisabled = full || importing || picking;
 
   return (
     <View style={{ gap: space.sm }}>
