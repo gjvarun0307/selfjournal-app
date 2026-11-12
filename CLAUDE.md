@@ -20,7 +20,7 @@ Plans run task-by-task with `superpowers:subagent-driven-development`; progress 
 - `src/core/media/` encrypted photo store: `media-store.ts` (import/commit/load/remove/sweep), `expo-media.ts` (AES-GCM, files in `files/media/<id>.full|.thumb`), `test-media.ts`, `use-media-uri.ts`, `media-image.tsx` (`<MediaImage>`).
 - `src/core/events/` `bus.ts` (`EventBus`), `types.ts` (`AppEvents`, augmented per plugin).
 - `src/core/plugins/` `types.ts` (`PluginDefinition`, `PluginContext`, `PluginTab`), `host.ts` (migrations + activation), `tabs.ts`, `use-enabled-ids.ts`.
-- `src/core/settings/app-settings.ts` key/value settings in the DB. `src/core/app-provider.tsx` boots services; hooks `useHost`, `useBus`, `useAppSettings`, `useEnabledPlugins`.
+- `src/core/settings/app-settings.ts` key/value settings in the DB. `src/core/app-provider.tsx` boots services; hooks `useHost`, `useBus`, `useAppSettings`, `useEnabledPlugins`, `usePluginContext`, `useMedia`.
 - `src/plugins/<id>/index.ts` one plugin each; its screens in `src/plugins/<id>/screens/`; `src/plugins/index.ts` exports `ALL_PLUGINS`.
 - `src/theme/` `tokens.ts` (single source of colours/spacing/radii/fonts), `use-theme.ts`.
 - Tests colocated: `foo.ts` -> `foo.test.ts(x)`.
@@ -45,10 +45,10 @@ Plans run task-by-task with `superpowers:subagent-driven-development`; progress 
 - Inside `db.transaction(async tx => …)` use ONLY `tx`. Calling the outer `db` inside the callback deadlocks (the transaction holds the queue).
 - Never emit or await events inside `db.transaction`; emit after it commits. A handler in another plugin that uses `ctx.db` would wait on the transaction's queue while the transaction waits on the handler: deadlock.
 - Any RN `<Modal>` or `Alert` renders above the app-lock overlay. Screens that open one must close it when the app locks (`locked` from `useAppLock()`).
-- With app lock on, FLAG_SECURE (expo-screen-capture) blocks screenshots and Recents thumbnails. To check locked states on a device use `uiautomator dump`, not screencap.
+- With app lock on, FLAG_SECURE (expo-screen-capture) blocks screenshots and Recents thumbnails. To check locked states on a device use `uiautomator dump --compressed`, not screencap (a plain dump includes views hidden from accessibility).
 - Check DB encryption on device: `adb exec-out run-as app.selfjournal head -c 16 files/SQLite/selfjournal.db | xxd` must NOT start with "SQLite format 3". (The quoted `adb shell … sh -c '…'` form silently prints nothing.)
 - Decrypted media only ever exists as in-memory `data:` URIs shown through `<MediaImage>` (expo-image `cachePolicy="none"`). Never write decrypted bytes to disk. Picker/manipulator temp files are deleted right after import.
-- `typedRoutes` needs Metro to regenerate `.expo/types/router.d.ts` after you add a route file; `tsc` fails on `router.push("/new/route")` until Metro has run once (or the route file exists and Metro restarted).
+- `typedRoutes`: after adding a route file, start Metro once (it regenerates `.expo/types/router.d.ts`), then run `tsc`. Until then `tsc` fails on `router.push` to the new route.
 - Migration ids are `<owner>:NNN` (`core:001`, `habits:001`). Never edit an applied migration; add a new one.
 
 ## Adding a plugin

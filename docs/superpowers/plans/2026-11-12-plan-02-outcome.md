@@ -2,7 +2,7 @@
 
 *Completed 2026-11-12 on branch `plan-02-journal` (not merged, not pushed).*
 
-**Status:** all 9 tasks done. 169 tests pass (28 suites) and `tsc` is clean. Lint is not run (see R-E). On-device checks on the Android emulator (API 37, `Medium_Phone`): 9 pass, **1 fails** (the notification permission prompt never appears; see "Must fix before merge").
+**Status:** all 9 tasks done, plus a final fix wave (see below). After the fix wave 187 tests pass (30 suites) and `tsc` is clean. Lint is not run (see R-E). Task 9's on-device checks on the Android emulator (API 37, `Medium_Phone`): 10 pass, **1 failed** (the notification permission prompt never appeared; fixed in the fix wave, see "Must fix before merge").
 
 ## On-device results
 
@@ -25,9 +25,9 @@
 ## Merged manifest permissions (debug APK, `aapt dump permissions`)
 
 - App-level, from `AndroidManifest.xml` after prebuild: `INTERNET`, `READ_EXTERNAL_STORAGE` (max SDK 32), `WRITE_EXTERNAL_STORAGE` (max SDK 32), `SYSTEM_ALERT_WINDOW`, `USE_BIOMETRIC`, `USE_FINGERPRINT`, `VIBRATE`. `CAMERA` and `RECORD_AUDIO` are explicitly removed (`tools:node="remove"`).
-- Added by merged libraries: `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK`, `READ_MEDIA_IMAGES` (max SDK 33, from expo-image-picker), `DETECT_SCREEN_CAPTURE`, `ACCESS_NETWORK_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, `ACCESS_LOCAL_NETWORK`, plus launcher badge permissions.
-- `READ_MEDIA_IMAGES` and `READ_EXTERNAL_STORAGE` are present (both limited to old SDKs) and the plan expected neither. The photo picker itself needs no permission at runtime.
-- **Finding:** `com.google.android.c2dm.permission.RECEIVE` and about 28 `firebase` string matches appear in the merged manifest. They come from expo-notifications (FCM push support). The app never registers for push, but the permission and Firebase components are in the APK. Not removed here. A later release plan should decide whether to strip them (`tools:node="remove"` or a config plugin), given the no-network, no-telemetry promise.
+- Added by merged libraries: `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `WAKE_LOCK`, `READ_MEDIA_IMAGES` (max SDK 33, from expo-screen-capture), `DETECT_SCREEN_CAPTURE`, `ACCESS_NETWORK_STATE`, `CHANGE_WIFI_MULTICAST_STATE`, `ACCESS_LOCAL_NETWORK`, plus launcher badge permissions.
+- `READ_MEDIA_IMAGES` and `READ_EXTERNAL_STORAGE` are present (both limited to old SDKs) and the plan expected neither. The photo picker itself needs no permission at runtime. **Fix wave:** both are now in `android.blockedPermissions` (see below).
+- **Finding:** `com.google.android.c2dm.permission.RECEIVE` and about 28 `firebase` string matches appear in the merged manifest. They come from expo-notifications (FCM push support). The app never registers for push, but the permission and Firebase components are in the APK. **Fix wave:** the `c2dm.permission.RECEIVE` permission is now blocked via `android.blockedPermissions`. The Firebase components themselves are still merged in; a later release plan decides whether to strip them.
 - `INTERNET` is also present (Metro in debug builds; check the release manifest in Plan 8).
 
 ## Decisions made in the plan (approved by the user)
@@ -36,7 +36,7 @@
 |---|---|
 | P1 | Photos downscaled on import (full 2048 px, JPEG 0.85; thumb 512 px, JPEG 0.8), encrypted with AES-256-GCM. The media key is a random 32-byte key inside the encrypted DB (`media.key`). Originals aren't kept. |
 | P2 | Photos come from the gallery only, via the Android photo picker. No camera. |
-| P3 | Daily reminder on by default at 20:00, "Time to check in.", one repeating `DAILY` trigger, fires even on days already written. Permission asked once, the first time the Journal tab opens. (The ask doesn't work on a fresh install; see above.) |
+| P3 | Daily reminder on by default at 20:00, "Time to check in.", one repeating `DAILY` trigger, fires even on days already written. Permission asked once, the first time the Journal tab opens. (The ask didn't work on a fresh install until F1 in the fix wave; see above.) |
 | P4 | Entries can be added to today and past days, not future days. An entry's day never changes. |
 | P5 | No Cards/Canvas toggle until Plan 7. `templateId` is stored on each entry type. |
 | P6 | Plugin screens live in `src/plugins/<id>/screens/`; routes in `src/app/` stay thin. |
@@ -56,7 +56,35 @@
 
 ## Must fix before merge
 
-- Notification permission prompt never appears on a fresh install (details above).
+- Notification permission prompt never appears on a fresh install (details above). **Resolved in the fix wave (F1):** `expoNotifier` now maps `denied` with `canAskAgain` to `undetermined`, so `askOnce` asks on a fresh Android 13+ install. Covered by `notifier.test.ts`. Re-checked on the device: see "Fix wave device rechecks".
+
+## Final fix wave (after the whole-branch review)
+
+Commits after 152916a:
+
+| Item | Change |
+|---|---|
+| F1 + F7 | `toState` uses `canAskAgain` (Android 13+ reports `denied` before the first ask). The Journal tab never asks while the app is locked, and asks once after unlock. `askOnce` idempotence is now proven by the `asked` key. |
+| F2 | The manipulator's own temp JPEG is always deleted after reading. `media.sweep()` first clears `cache/ImagePicker` and `cache/ImageManipulator` (skipped while an import is running; a failure only warns). |
+| F3 | `android.blockedPermissions`: `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE`, `READ_MEDIA_IMAGES`, `c2dm.permission.RECEIVE`. |
+| F6 | The Reminders screen re-reads the permission when the app returns to the foreground and schedules once it's granted. While undetermined (and the reminder is on) it shows "Allow notifications". |
+| F8 | The entry detail no longer flashes "This entry isn't here any more." while deleting. |
+| F9 | A failed photo cleanup after an update or delete commits is logged, still notifies, and never rejects. |
+| F10 | A read-only rating is one accessible element ("4 of 5 stars"). The Time row reads "Time, <time>". |
+| F12 | CONTRIBUTING.md and CLAUDE.md corrections; this document. |
+| F5 | Verify only: the lock overlay sets `importantForAccessibility="no-hide-descendants"` on the content underneath. |
+
+### Fix wave device rechecks
+
+| # | Check | Result | Evidence |
+|---|---|---|---|
+| 1 | Fresh install: prompt once on the Journal tab, alarm after allowing | Not run | The emulator's own screen lock (an unknown device PIN, not the app's 2468) blocked the UI. |
+| 2 | Deny, then grant in the background: alarm appears without a restart | Not run | Same blocker. |
+| 3 | APK has no READ/WRITE_EXTERNAL_STORAGE, READ_MEDIA_IMAGES or c2dm RECEIVE | Pass | `aapt dump permissions app-debug.apk` lists none of the four. |
+| 4 | Picking photos still works | Not run | Same blocker. |
+| 5 | Force-stop mid-import, relaunch: temp dirs empty | Not run | Same blocker. |
+| 6 | Locked: `uiautomator dump --compressed` has no journal text (F5) | Not run | Same blocker. |
+| 7 | Reminder fires with "SelfJournal" / "Time to check in." | Not run | Same blocker. |
 
 ## Must do at the start of Plan 3
 
