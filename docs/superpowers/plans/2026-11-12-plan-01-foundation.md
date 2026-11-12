@@ -229,7 +229,7 @@ git add -A && git commit -m "chore: scaffold Expo app with dev client, Jest, SQL
     - `setEnabled` is a no-op if unchanged. Otherwise it persists, calls the plugin's cleanup on disable or `activate` on enable, and notifies listeners.
   - `visibleTabs(defs: PluginDefinition[], enabledIds: string[]): PluginTab[]`: tabs of enabled plugins sorted by `order`, plus the always-present `{ route: "me", title: "Me", icon: "person", order: 100 }`.
 
-- [ ] **Step 1: Write failing tests.**
+- [x] **Step 1: Write failing tests.**
   - `app-settings.test.ts`: set/get/overwrite/delete round-trip.
   - `host.test.ts`:
     - `first start enables all plugins and persists state`.
@@ -241,10 +241,10 @@ git add -A && git commit -m "chore: scaffold Expo app with dev client, Jest, SQL
     - `throws on duplicate plugin ids`.
     - `notifies subscribers on change`.
   - `tabs.test.ts`: `hides tabs of disabled plugins and always includes Me last`. With journal(order 10), habits(20), recovery(30) and habits disabled → routes `["index","recovery","me"]`.
-- [ ] **Step 2: Run** `npx jest src/core` → FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `npx jest src/core` → PASS.
-- [ ] **Step 5: Commit** `feat(core): plugin host with persistent on/off state and tab visibility`.
+- [x] **Step 2: Run** `npx jest src/core` → FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** `npx jest src/core` → PASS.
+- [x] **Step 5: Commit** `feat(core): plugin host with persistent on/off state and tab visibility`.
 
 ---
 
