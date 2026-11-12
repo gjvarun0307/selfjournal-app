@@ -23,17 +23,19 @@ async function ensureChannel(): Promise<void> {
   });
 }
 
-function toState(status: string): PermissionState {
-  return status === "granted" ? "granted" : status === "denied" ? "denied" : "undetermined";
+export function toState(r: { status: string; canAskAgain: boolean }): PermissionState {
+  if (r.status === "granted") return "granted";
+  // Android 13+ reports "denied" before the first ask; canAskAgain tells the cases apart.
+  return r.canAskAgain ? "undetermined" : "denied";
 }
 
 export const expoNotifier: Notifier = {
   async permission() {
-    return toState((await Notifications.getPermissionsAsync()).status);
+    return toState(await Notifications.getPermissionsAsync());
   },
   async request() {
     await ensureChannel();
-    return toState((await Notifications.requestPermissionsAsync()).status);
+    return toState(await Notifications.requestPermissionsAsync());
   },
   async scheduleDaily(id, hour, minute, content) {
     await ensureChannel();

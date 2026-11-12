@@ -12,8 +12,9 @@ import { EMPTY_DAY_COPY, JournalDayScreen } from "./day-screen";
 let mockId = 0;
 jest.mock("expo-crypto", () => ({ randomUUID: () => `entry-${++mockId}` }));
 
+let mockLocked = false;
 jest.mock("@/screens/lock", () => ({
-  useAppLock: () => ({ locked: false, withSystemPrompt: <T,>(p: () => Promise<T>) => p() }),
+  useAppLock: () => ({ locked: mockLocked, withSystemPrompt: <T,>(p: () => Promise<T>) => p() }),
 }));
 
 jest.mock("../notifier", () => ({
@@ -42,16 +43,20 @@ async function setup() {
   await host.start();
   const services: AppServices = { host, bus: core.bus, settings: core.settings, media: core.media };
   const journal = getJournalService(host.contextFor("journal"), (id) => host.entryType(id));
-  const view = () =>
-    render(
-      <AppProvider boot={() => Promise.resolve(services)}>
-        <JournalDayScreen />
-      </AppProvider>,
-    );
-  return { core, host, journal, view };
+  const boot = () => Promise.resolve(services);
+  const tree = () => (
+    <AppProvider boot={boot}>
+      <JournalDayScreen />
+    </AppProvider>
+  );
+  const view = () => render(tree());
+  return { core, host, journal, view, tree };
 }
 
-beforeEach(() => mockPush.mockClear());
+beforeEach(() => {
+  mockPush.mockClear();
+  mockLocked = false;
+});
 
 describe("JournalDayScreen", () => {
   it("shows today's cards in order, steps back a day, and disables next on today", async () => {
@@ -82,6 +87,25 @@ describe("JournalDayScreen", () => {
     jest.mocked(expoNotifier.request).mockClear();
     await view();
     await screen.findByText(EMPTY_DAY_COPY);
+    await act(async () => undefined);
+    expect(expoNotifier.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("doesn't ask about the reminder while locked, then asks once after unlock", async () => {
+    const { view, tree } = await setup();
+    jest.mocked(expoNotifier.request).mockClear();
+    mockLocked = true;
+    await view();
+    await screen.findByText(EMPTY_DAY_COPY);
+    await act(async () => undefined);
+    expect(expoNotifier.request).not.toHaveBeenCalled();
+
+    mockLocked = false;
+    await screen.rerender(tree());
+    await act(async () => undefined);
+    expect(expoNotifier.request).toHaveBeenCalledTimes(1);
+
+    await screen.rerender(tree());
     await act(async () => undefined);
     expect(expoNotifier.request).toHaveBeenCalledTimes(1);
   });

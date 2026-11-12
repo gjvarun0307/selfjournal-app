@@ -22,15 +22,15 @@ export function JournalDayScreen() {
   const journal = useJournal();
   const today = useToday();
   const ctx = usePluginContext("journal");
-  const { withSystemPrompt } = useAppLock();
+  const { locked, withSystemPrompt } = useAppLock();
   const askedRef = useRef(false);
 
-  // Ask about the daily reminder once, the first time the journal opens.
+  // Ask about the daily reminder once, the first time the journal opens unlocked.
   useEffect(() => {
-    if (askedRef.current) return;
+    if (locked || askedRef.current) return;
     askedRef.current = true;
     askOnce(ctx.settings, expoNotifier, withSystemPrompt).catch((e) => console.warn("Reminder permission", e));
-  }, [ctx, withSystemPrompt]);
+  }, [ctx, locked, withSystemPrompt]);
   // null = follow today, so the screen moves on when the date rolls over.
   const [picked, setPicked] = useState<DayKey | null>(null);
   const day = picked ?? today;

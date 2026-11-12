@@ -92,9 +92,18 @@ describe("reminder", () => {
     expect(runPrompt).toHaveBeenCalledTimes(1);
     expect(calls).toEqual(["request", "schedule"]);
     expect(scheduled).toHaveLength(1);
+  });
+
+  it("askOnce never asks twice, even when permission stays undetermined", async () => {
+    const settings = await freshSettings();
+    // Still "undetermined" after the request (e.g. the prompt was dismissed), so only the asked key stops a second ask.
+    const { n, calls } = fakeNotifier("undetermined", "undetermined");
+    const runPrompt = jest.fn();
+    runPrompt.mockImplementation((p: () => Promise<unknown>) => p());
+    await askOnce(settings, n, runPrompt as never);
     await askOnce(settings, n, runPrompt as never);
     expect(runPrompt).toHaveBeenCalledTimes(1);
-    expect(calls).toEqual(["request", "schedule"]);
+    expect(calls.filter((c) => c === "request")).toHaveLength(1);
   });
 
   it("askOnce does not prompt when permission is already decided", async () => {
