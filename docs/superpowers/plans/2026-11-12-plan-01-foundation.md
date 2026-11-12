@@ -344,8 +344,8 @@ git add -A && git commit -m "chore: scaffold Expo app with dev client, Jest, SQL
 - Create: `CLAUDE.md`, `CONTRIBUTING.md`
 - Modify: `.gitignore` (add `CLAUDE.local.md`), `README.md`
 
-- [ ] **Step 1: Write `CLAUDE.md`** (under ~80 lines), covering: what the app is (one paragraph, linking the spec and roadmap); commands (`npm test`, `npx tsc --noEmit`, `npx expo run:android`, prebuild note); folder map from this plan; the Global Constraints above verbatim; how to add a plugin (pointer to CONTRIBUTING); "install with `npx expo install`"; "read docs for the SDK version in package.json".
-- [ ] **Step 2: Write `CONTRIBUTING.md`**: how to add a plugin. Create `src/plugins/<id>/index.ts` exporting a `PluginDefinition`, migrations with `<id>:NNN` ids, add it to `ALL_PLUGINS`, declare events via `AppEvents` augmentation, never import another plugin, and follow the tone rules (no streak resets, no shaming, generic notifications). Include a 15-line example plugin that listens to an event.
-- [ ] **Step 3: Update `README.md`** to two or three lines: what SelfJournal is, plus links to CONTRIBUTING and the spec.
-- [ ] **Step 4: Verify**: `npm test` PASS, and `git check-ignore CLAUDE.local.md` prints the path.
-- [ ] **Step 5: Commit** `docs: CLAUDE.md, contributing guide for plugin authors`.
+- [x] **Step 1: Write `CLAUDE.md`** (under ~80 lines), covering: what the app is (one paragraph, linking the spec and roadmap); commands (`npm test`, `npx tsc --noEmit`, `npx expo run:android`, prebuild note); folder map from this plan; the Global Constraints above verbatim; how to add a plugin (pointer to CONTRIBUTING); "install with `npx expo install`"; "read docs for the SDK version in package.json".
+- [x] **Step 2: Write `CONTRIBUTING.md`**: how to add a plugin. Create `src/plugins/<id>/index.ts` exporting a `PluginDefinition`, migrations with `<id>:NNN` ids, add it to `ALL_PLUGINS`, declare events via `AppEvents` augmentation, never import another plugin, and follow the tone rules (no streak resets, no shaming, generic notifications). Include a 15-line example plugin that listens to an event.
+- [x] **Step 3: Update `README.md`** to two or three lines: what SelfJournal is, plus links to CONTRIBUTING and the spec.
+- [x] **Step 4: Verify**: `npm test` PASS, and `git check-ignore CLAUDE.local.md` prints the path.
+- [x] **Step 5: Commit** `docs: CLAUDE.md, contributing guide for plugin authors`.
