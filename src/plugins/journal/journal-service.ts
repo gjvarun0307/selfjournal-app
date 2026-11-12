@@ -81,6 +81,17 @@ export function createJournalService(
     for (const l of [...listeners]) l();
   };
 
+  /** Runs after the change has committed: a failed photo cleanup is logged, never thrown, and listeners still hear. */
+  async function afterCommit(droppedPhotoIds: string[]): Promise<void> {
+    try {
+      if (droppedPhotoIds.length > 0) await ctx.media.remove(droppedPhotoIds);
+    } catch (e) {
+      console.warn("[Journal] could not remove photos", e);
+    } finally {
+      notify();
+    }
+  }
+
   async function load(db: Db, rows: Row[]): Promise<JournalEntry[]> {
     const out: JournalEntry[] = [];
     for (const r of rows) {
@@ -154,8 +165,7 @@ export function createJournalService(
         await insertPhotos(tx, id, change.photoIds);
         await ctx.media.commit(tx, change.photoIds);
       });
-      if (removed.length > 0) await ctx.media.remove(removed);
-      notify();
+      await afterCommit(removed);
       return { ...old, fields, photoIds: [...change.photoIds], updatedAt: ts };
     },
     async remove(id) {
@@ -165,8 +175,7 @@ export function createJournalService(
         await tx.run("DELETE FROM journal_entry_photos WHERE entry_id = ?", [id]);
         await tx.run("DELETE FROM journal_entries WHERE id = ?", [id]);
       });
-      if (old.photoIds.length > 0) await ctx.media.remove(old.photoIds);
-      notify();
+      await afterCommit(old.photoIds);
     },
     subscribe(listener) {
       listeners.add(listener);

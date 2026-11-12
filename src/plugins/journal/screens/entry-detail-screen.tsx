@@ -31,7 +31,8 @@ export function EntryDetailScreen({ id }: { id: string }) {
     let live = true;
     const load = () => {
       journal.get(id).then(
-        (entry) => live && setLoaded({ id, entry }),
+        // Mid-delete the reload finds nothing; keep showing the entry until navigation leaves.
+        (entry) => live && !deleting.current && setLoaded({ id, entry }),
         () => undefined,
       );
     };

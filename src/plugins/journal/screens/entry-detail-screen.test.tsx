@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react-native";
+import { act, fireEvent, render, screen } from "@testing-library/react-native";
 
 import { AppProvider, type AppServices } from "@/core/app-provider";
 import { PluginHost } from "@/core/plugins/host";
@@ -6,7 +6,7 @@ import { createTestServices } from "@/core/test-services";
 import { ALL_PLUGINS } from "@/plugins";
 import { dayKey } from "../days";
 import { getJournalService } from "../journal-service";
-import { EntryDetailScreen } from "./entry-detail-screen";
+import { ENTRY_MISSING_COPY, EntryDetailScreen } from "./entry-detail-screen";
 
 let mockId = 0;
 jest.mock("expo-crypto", () => ({ randomUUID: () => `entry-${++mockId}` }));
@@ -37,7 +37,7 @@ async function setup() {
 
 beforeEach(() => {
   mockRouter.push.mockClear();
-  mockRouter.back.mockClear();
+  mockRouter.back.mockReset();
   mockTitle.mockClear();
 });
 
@@ -56,7 +56,7 @@ describe("EntryDetailScreen", () => {
     expect(screen.getByText("Game")).toBeTruthy();
     expect(screen.getByText("Hours played")).toBeTruthy();
     expect(screen.getByText("2.5")).toBeTruthy();
-    expect(screen.getByLabelText("Rate 4 of 5")).toBeTruthy();
+    expect(screen.getByLabelText("4 of 5 stars")).toBeTruthy();
     expect(screen.queryByText("What I want to remember")).toBeNull();
     expect(mockTitle).toHaveBeenLastCalledWith("Game cleared");
   });
@@ -80,6 +80,23 @@ describe("EntryDetailScreen", () => {
     await fireEvent.press(screen.getByLabelText("Delete"));
     expect(await journal.get(e.id)).toBeNull();
     expect(mockRouter.back).toHaveBeenCalledTimes(1);
+  });
+
+  it("never flashes the missing-entry copy while deleting", async () => {
+    const { journal, view } = await setup();
+    const e = await journal.create({ day: today(), typeId: "journal.day", fields: { text: "Gone soon" }, photoIds: [] });
+    const seenAtBack: boolean[] = [];
+    mockRouter.back.mockImplementation(() => seenAtBack.push(screen.queryByText(ENTRY_MISSING_COPY) !== null));
+    await view(e.id);
+    await screen.findByText("Gone soon");
+    await fireEvent.press(screen.getByLabelText("Delete"));
+    await fireEvent.press(screen.getByLabelText("Delete"));
+    // Let the reload the delete triggers settle; the screen would still be up until navigation finishes.
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(seenAtBack).toEqual([false]);
+    expect(screen.queryByText(ENTRY_MISSING_COPY)).toBeNull();
   });
 
   it("Keep it leaves the entry", async () => {

@@ -87,6 +87,27 @@ describe("JournalService", () => {
     await expect(service.remove(e1.id)).rejects.toBeInstanceOf(EntryInvalidError);
   });
 
+  it("a failed media cleanup after commit still notifies and resolves", async () => {
+    const { ctx, service, photo } = await setup();
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+    const mediaRemove = jest.spyOn(ctx.media, "remove").mockRejectedValue(new Error("disk gone"));
+    const a = await photo();
+    const b = await photo();
+    const e = await service.create({ day: "2026-05-10", typeId: "journal.day", fields: { text: "x" }, photoIds: [a, b] });
+    const listener = jest.fn();
+    service.subscribe(listener);
+
+    await expect(service.update(e.id, { fields: {}, photoIds: [a] })).resolves.toMatchObject({ photoIds: [a] });
+    expect(listener).toHaveBeenCalledTimes(1);
+    await expect(service.remove(e.id)).resolves.toBeUndefined();
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(await service.get(e.id)).toBeNull();
+    expect(mediaRemove).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledTimes(2);
+    mediaRemove.mockRestore();
+    warn.mockRestore();
+  });
+
   it("listDay returns that day's entries in creation order", async () => {
     const { service } = await setup();
     const a = await service.create({ day: "2026-05-10", typeId: "journal.day", fields: { text: "a" }, photoIds: [] });
