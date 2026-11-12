@@ -43,7 +43,7 @@ async function setup({ pin }: { pin?: string } = {}) {
   if (pin) await store.setPin(pin, SALT);
   await store.markOnboarded();
   const host = new PluginHost(ALL_PLUGINS, core, { onError: jest.fn() });
-  const services: AppServices = { host, bus, settings };
+  const services: AppServices = { host, bus, settings, media: core.media };
   return { services, store };
 }
 

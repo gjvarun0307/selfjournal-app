@@ -3,6 +3,9 @@ import { ActivityIndicator, Text, View } from "react-native";
 
 import { openEncryptedDb } from "@/core/db/expo-db";
 import { EventBus } from "@/core/events/bus";
+import { expoMediaDeps } from "@/core/media/expo-media";
+import { createMediaStore } from "@/core/media/media-store";
+import type { MediaStore } from "@/core/media/types";
 import { PluginHost } from "@/core/plugins/host";
 import type { PluginContext } from "@/core/plugins/types";
 import { useEnabledIds } from "@/core/plugins/use-enabled-ids";
@@ -23,6 +26,7 @@ export interface AppServices {
   host: PluginHost;
   settings: AppSettings;
   bus: EventBus;
+  media: MediaStore;
 }
 
 async function bootServices(): Promise<AppServices> {
@@ -34,9 +38,13 @@ async function bootServices(): Promise<AppServices> {
   const db = await openEncryptedDb(key);
   const bus = new EventBus();
   const settings = createAppSettings(db);
-  const host = new PluginHost(ALL_PLUGINS, { db, bus, settings });
+  // Core (unscoped) settings: the media key lives under `media.key`, out of reach of plugin contexts.
+  const media = createMediaStore({ db, settings, ...expoMediaDeps() });
+  const host = new PluginHost(ALL_PLUGINS, { db, bus, settings, media });
   await host.start();
-  return { host, settings, bus };
+  // Housekeeping only: a failed sweep must never block boot.
+  media.sweep().catch((e: unknown) => console.warn("[Media] sweep failed", e));
+  return { host, settings, bus, media };
 }
 
 // Boot exactly once per JS runtime. expo-sqlite caches the connection by name, so re-keying it
@@ -114,6 +122,10 @@ export function usePluginContext(id: string): PluginContext {
 
 export function useBus(): EventBus {
   return useServices("useBus").bus;
+}
+
+export function useMedia(): MediaStore {
+  return useServices("useMedia").media;
 }
 
 export function useEnabledPlugins(): string[] {

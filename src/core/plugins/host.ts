@@ -49,10 +49,11 @@ export class PluginHost {
   }
 
   private buildContext(id: string): PluginContext {
-    const { db, bus, settings } = this.services;
+    const { db, bus, settings, media } = this.services;
     return {
       pluginId: id,
       db,
+      media,
       settings: scopedSettings(settings, `plugin.${id}.`),
       bus: {
         on: (type, handler) => {

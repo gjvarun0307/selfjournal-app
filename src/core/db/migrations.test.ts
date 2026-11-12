@@ -36,10 +36,10 @@ describe('runMigrations', () => {
     expect(await tables(db)).not.toContain('half');
   });
 
-  it('CORE_MIGRATIONS create app_settings and plugin_state', async () => {
+  it('CORE_MIGRATIONS create app_settings, plugin_state and media', async () => {
     const db = createTestDb();
-    expect(await runMigrations(db, CORE_MIGRATIONS)).toEqual(['core:001']);
+    expect(await runMigrations(db, CORE_MIGRATIONS)).toEqual(['core:001', 'core:002']);
     const names = await tables(db);
-    expect(names).toEqual(expect.arrayContaining(['app_settings', 'plugin_state']));
+    expect(names).toEqual(expect.arrayContaining(['app_settings', 'plugin_state', 'media']));
   });
 });

@@ -147,6 +147,16 @@ describe("PluginHost", () => {
     expect(() => host.contextFor("zzz")).toThrow();
   });
 
+  it("contextFor shares the core media store; its key is out of reach of plugin settings", async () => {
+    const { ctx } = setup();
+    const host = new PluginHost([plain("a")], ctx);
+    await host.start();
+    expect(host.contextFor("a").media).toBe(ctx.media);
+    await ctx.media.importImage("file:///cache/a.jpg");
+    expect(await ctx.settings.get("media.key")).toMatch(/^[0-9a-f]{64}$/);
+    expect(await host.contextFor("a").settings.get("media.key")).toBeNull();
+  });
+
   it("host drops a plugin's subscriptions on disable without a cleanup", async () => {
     const { ctx, bus } = setup();
     const h = jest.fn();

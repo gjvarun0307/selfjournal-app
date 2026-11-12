@@ -24,7 +24,7 @@ describe("AppProvider", () => {
     const core = createTestServices();
     const host = new PluginHost(ALL_PLUGINS, core, { onError: jest.fn() });
     await host.start();
-    const services: AppServices = { host, bus: core.bus, settings: core.settings };
+    const services: AppServices = { host, bus: core.bus, settings: core.settings, media: core.media };
 
     await render(
       <AppProvider boot={() => Promise.resolve(services)}>
