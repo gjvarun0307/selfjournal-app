@@ -199,14 +199,14 @@ git add -A && git commit -m "chore: scaffold Expo app with dev client, Jest, SQL
   - `type EventHandler<K extends keyof AppEvents> = (payload: AppEvents[K]) => void | Promise<void>`
   - `class EventBus { on<K extends keyof AppEvents>(type: K, handler: EventHandler<K>): () => void; emit<K extends keyof AppEvents>(type: K, payload: AppEvents[K]): Promise<void>; }`. `emit` awaits all handlers. A handler that throws or rejects is caught and reported via the constructor option `onError: (err: unknown, type: string) => void` (default `console.error`), and never stops other handlers or rejects `emit`.
 
-- [ ] **Step 1: Write failing tests** (augment `AppEvents` with a `"test.ping": { n: number }` event inside the test file):
+- [x] **Step 1: Write failing tests** (augment `AppEvents` with a `"test.ping": { n: number }` event inside the test file):
   - `delivers payload to every subscriber`.
   - `unsubscribe stops delivery`.
   - `a throwing handler does not block others or reject emit` (Review Focus 3): handlers [throws, rejects, records] → `emit` resolves, the recorder got the payload, and `onError` was called twice.
-- [ ] **Step 2: Run** `npx jest src/core/events` → FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** → PASS.
-- [ ] **Step 5: Commit** `feat(core): typed event bus with isolated handler failures`.
+- [x] **Step 2: Run** `npx jest src/core/events` → FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** → PASS.
+- [x] **Step 5: Commit** `feat(core): typed event bus with isolated handler failures`.
 
 ---
 
