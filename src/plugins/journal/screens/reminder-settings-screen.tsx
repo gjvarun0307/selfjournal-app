@@ -1,6 +1,6 @@
 import { Host, TimePickerDialog } from "@expo/ui/jetpack-compose";
 import { useCallback, useEffect, useState } from "react";
-import { Linking, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { AppState, Linking, Pressable, ScrollView, Switch, Text, View } from "react-native";
 
 import { usePluginContext } from "@/core/app-provider";
 import { useAppLock } from "@/screens/lock";
@@ -56,6 +56,19 @@ export function ReminderSettingsScreen({ notifier = expoNotifier }: { notifier?:
     };
   }, [settings, refreshPermission]);
 
+  // Back from the phone's settings: the permission may have changed, and a newly granted one should schedule.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      (async () => {
+        const p = await notifier.permission();
+        setPermission(p);
+        if (p === "granted" && (await readReminder(settings)).enabled) await syncReminder(settings, notifier);
+      })().catch((e) => console.warn("Could not refresh the daily reminder", e));
+    });
+    return () => sub.remove();
+  }, [notifier, settings]);
+
   // The dialog is its own window above the lock overlay, so it must go when the app locks.
   useEffect(() => {
     if (locked) setPickingTime(false);
@@ -68,6 +81,16 @@ export function ReminderSettingsScreen({ notifier = expoNotifier }: { notifier?:
       if (next.enabled && (await notifier.permission()) === "undetermined") {
         await withSystemPrompt(() => notifier.request());
       }
+      await syncReminder(settings, notifier);
+    } catch (e) {
+      console.warn("Could not update the daily reminder", e);
+    }
+    await refreshPermission();
+  };
+
+  const allow = async () => {
+    try {
+      await withSystemPrompt(() => notifier.request());
       await syncReminder(settings, notifier);
     } catch (e) {
       console.warn("Could not update the daily reminder", e);
@@ -112,7 +135,7 @@ export function ReminderSettingsScreen({ notifier = expoNotifier }: { notifier?:
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Time"
+        accessibilityLabel={`Time, ${timeLabel}`}
         onPress={() => setPickingTime(true)}
         style={row}
       >
@@ -136,6 +159,25 @@ export function ReminderSettingsScreen({ notifier = expoNotifier }: { notifier?:
             }}
           >
             <Text style={{ color: colors.text, fontSize: font.small }}>Open phone settings</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {permission === "undetermined" && reminder.enabled ? (
+        <View style={{ padding: space.lg }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Allow notifications"
+            onPress={() => void allow()}
+            style={{
+              alignSelf: "flex-start",
+              paddingHorizontal: space.lg,
+              paddingVertical: space.sm,
+              borderRadius: radius.pill,
+              backgroundColor: colors.surfaceAlt,
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: font.small }}>Allow notifications</Text>
           </Pressable>
         </View>
       ) : null}

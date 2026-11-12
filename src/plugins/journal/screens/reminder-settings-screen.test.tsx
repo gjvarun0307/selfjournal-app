@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
-import { Linking } from "react-native";
+import { AppState, Linking, type AppStateStatus } from "react-native";
 
 import { AppProvider, type AppServices } from "@/core/app-provider";
 import { PluginHost } from "@/core/plugins/host";
@@ -21,21 +21,26 @@ jest.mock("@expo/ui/jetpack-compose", () => {
   };
 });
 
-function fakeNotifier(state: PermissionState): Notifier {
-  return {
-    permission: async () => state,
-    request: async () => state,
+function fakeNotifier(initial: PermissionState, afterRequest: PermissionState = initial) {
+  const n = {
+    state: initial,
+    permission: jest.fn(async (): Promise<PermissionState> => n.state),
+    request: jest.fn(async (): Promise<PermissionState> => {
+      n.state = afterRequest;
+      return n.state;
+    }),
     scheduleDaily: jest.fn().mockResolvedValue(undefined),
     cancel: jest.fn().mockResolvedValue(undefined),
-  };
+  } satisfies Notifier & { state: PermissionState };
+  return n;
 }
 
-async function setup(state: PermissionState = "granted") {
+async function setup(state: PermissionState = "granted", afterRequest: PermissionState = state) {
   const core = createTestServices();
   const host = new PluginHost(ALL_PLUGINS, core, { onError: jest.fn() });
   await host.start();
   const services: AppServices = { host, bus: core.bus, settings: core.settings, media: core.media };
-  const notifier = fakeNotifier(state);
+  const notifier = fakeNotifier(state, afterRequest);
   const ui = () => (
     <AppProvider boot={() => Promise.resolve(services)}>
       <ReminderSettingsScreen notifier={notifier} />
@@ -62,7 +67,7 @@ describe("ReminderSettingsScreen", () => {
   it("closes the time dialog when the app locks", async () => {
     const { ui } = await setup();
     const view = await render(ui());
-    await fireEvent.press(await screen.findByLabelText("Time"));
+    await fireEvent.press(await screen.findByLabelText(/^Time, /));
     expect(screen.getByText("time-dialog")).toBeTruthy();
     mockLocked = true;
     await view.rerender(ui());
@@ -76,5 +81,44 @@ describe("ReminderSettingsScreen", () => {
     expect(await screen.findByText(DENIED_NOTE)).toBeTruthy();
     await fireEvent.press(screen.getByLabelText("Open phone settings"));
     expect(open).toHaveBeenCalled();
+  });
+
+  it("labels the time row with the chosen time", async () => {
+    const { ui } = await setup();
+    await render(ui());
+    const timeRow = await screen.findByLabelText(/^Time, /);
+    expect(timeRow.props.accessibilityLabel).toMatch(/^Time, (20:00|0?8:00\s?PM)$/i);
+  });
+
+  it("rechecks permission on return to the app and schedules once it's granted", async () => {
+    let listener: ((s: AppStateStatus) => void) | undefined;
+    const remove = jest.fn();
+    // Once only: the preset's AppState.addEventListener is itself a mock, which mockRestore would blank.
+    jest.spyOn(AppState, "addEventListener").mockImplementationOnce((_type, l) => {
+      listener = l as (s: AppStateStatus) => void;
+      return { remove };
+    });
+    const { notifier, ui } = await setup("denied");
+    const view = await render(ui());
+    expect(await screen.findByText(DENIED_NOTE)).toBeTruthy();
+    expect(notifier.scheduleDaily).not.toHaveBeenCalled();
+
+    notifier.state = "granted";
+    await act(async () => listener?.("active"));
+    expect(notifier.scheduleDaily).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(DENIED_NOTE)).toBeNull();
+
+    await view.unmount();
+    expect(remove).toHaveBeenCalled();
+  });
+
+  it("offers to allow notifications while undetermined, then schedules", async () => {
+    const { notifier, ui } = await setup("undetermined", "granted");
+    await render(ui());
+    await fireEvent.press(await screen.findByLabelText("Allow notifications"));
+    await act(async () => undefined);
+    expect(notifier.request).toHaveBeenCalledTimes(1);
+    expect(notifier.scheduleDaily).toHaveBeenCalledTimes(1);
+    expect(screen.queryByLabelText("Allow notifications")).toBeNull();
   });
 });
