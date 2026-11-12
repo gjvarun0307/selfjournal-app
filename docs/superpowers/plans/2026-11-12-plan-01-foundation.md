@@ -322,7 +322,7 @@ git add -A && git commit -m "chore: scaffold Expo app with dev client, Jest, SQL
   - Onboarding (first launch only): "Protect your journal?" with **Set a PIN** / **Not now**. Both mark onboarded. Copy: "Your journal stays on this phone. A PIN keeps it private if someone else picks it up."
   - App lock settings: set/change/remove PIN, plus a biometrics toggle (shown only if `hasHardwareAsync && isEnrolledAsync`).
 
-- [ ] **Step 1: Write failing tests.**
+- [x] **Step 1: Write failing tests.**
   - `pin.test.ts`:
     - `verifyPin accepts the right PIN and rejects a wrong one`.
     - `same PIN with different salts gives different hashes`.
@@ -330,11 +330,11 @@ git add -A && git commit -m "chore: scaffold Expo app with dev client, Jest, SQL
     - `shouldLock is false when lock disabled`.
     - `shouldLock stays false within the grace period and true after it` (Review Focus 5): backgrounded at t=0 → `now=29_999` false, `now=30_000` true.
   - `app-lock-store.test.ts` (on `createAppSettings(createTestDb())` after core migrations): `setPin then checkPin`, `clearPin disables lock`, `onboarding flag round-trip`.
-- [ ] **Step 2: Run** `npx jest src/core/security` → FAIL.
-- [ ] **Step 3: Implement** `pin.ts`, the store, then the screens and gate.
-- [ ] **Step 4: Run** `npm test` and `npx tsc --noEmit` → PASS / no errors.
-- [ ] **Step 5: Verify on device.** Fresh install → onboarding appears → set PIN 2468 → background the app for less than 30 s and return: no lock. Wait 30 s or more: locked. Wrong PIN: soft message. Right PIN: unlocks. "Forgot PIN?" → device credential → PIN cleared and App lock settings open.
-- [ ] **Step 6: Commit** `feat: app lock with PIN, biometrics, device-credential reset, first-run offer`.
+- [x] **Step 2: Run** `npx jest src/core/security` → FAIL.
+- [x] **Step 3: Implement** `pin.ts`, the store, then the screens and gate.
+- [x] **Step 4: Run** `npm test` and `npx tsc --noEmit` → PASS / no errors.
+- [x] **Step 5: Verify on device.** Fresh install → onboarding appears → set PIN 2468 → background the app for less than 30 s and return: no lock. Wait 30 s or more: locked. Wrong PIN: soft message. Right PIN: unlocks. "Forgot PIN?" → device credential → PIN cleared and App lock settings open.
+- [x] **Step 6: Commit** `feat: app lock with PIN, biometrics, device-credential reset, first-run offer`.
 
 ---
 
