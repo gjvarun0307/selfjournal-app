@@ -1,3 +1,5 @@
+import type { CardTint } from "@/core/entry-types/types";
+
 export type ColorTokens = {
   background: string;
   surface: string;
@@ -9,6 +11,8 @@ export type ColorTokens = {
   border: string;
   positive: string;
   caution: string;
+  /** Soft paper tints for entry cards. Text on them is `text`. */
+  tints: Record<CardTint, string>;
 };
 
 // Warm paper / ink palettes. Deliberately no red "danger" colour.
@@ -23,6 +27,14 @@ const light: ColorTokens = {
   border: "#DDD3BE",
   positive: "#5B8A5A",
   caution: "#C48A1E",
+  tints: {
+    sky: "#DDE8F2",
+    sage: "#E0EAD7",
+    peach: "#F6E2CF",
+    lilac: "#E6DFF0",
+    sand: "#EDE3CF",
+    mint: "#D6EBE2",
+  },
 };
 
 const dark: ColorTokens = {
@@ -36,6 +48,14 @@ const dark: ColorTokens = {
   border: "#4A4337",
   positive: "#8DBB8A",
   caution: "#E0B04A",
+  tints: {
+    sky: "#2A3744",
+    sage: "#2F3A2B",
+    peach: "#45362A",
+    lilac: "#38304A",
+    sand: "#3B3426",
+    mint: "#263C34",
+  },
 };
 
 export const tokens = {

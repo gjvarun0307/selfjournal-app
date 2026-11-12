@@ -41,4 +41,18 @@ describe("design tokens", () => {
       expect(contrast(c.accentText, c.accent)).toBeGreaterThanOrEqual(4.5);
     }
   });
+
+  it("card tints keep text readable and stay out of the red hues", () => {
+    for (const c of [tokens.light, tokens.dark]) {
+      for (const tint of Object.values(c.tints)) {
+        expect(contrast(c.text, tint)).toBeGreaterThanOrEqual(4.5);
+        const hue = hueOf(tint);
+        expect(hue > 15 && hue < 345).toBe(true);
+      }
+    }
+  });
+
+  it("light and dark define the same tints", () => {
+    expect(Object.keys(tokens.dark.tints).sort()).toEqual(Object.keys(tokens.light.tints).sort());
+  });
 });

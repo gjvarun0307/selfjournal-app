@@ -1,5 +1,5 @@
-import { Placeholder } from "@/screens/placeholder";
+import { JournalDayScreen } from "@/plugins/journal/screens/day-screen";
 
 export default function JournalTab() {
-  return <Placeholder title="Journal" note="Coming in the next update" />;
+  return <JournalDayScreen />;
 }
