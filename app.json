@@ -37,7 +37,15 @@
           "useSQLCipher": true
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": false,
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
