@@ -293,14 +293,14 @@ git add -A && git commit -m "chore: scaffold Expo app with dev client, Jest, SQL
   - `PluginsScreen({ host }: { host: PluginHost })`: one row per plugin with name, description and a switch bound to `isEnabled` / `setEnabled`. Footer text: "Turning a plugin off hides it. Your data stays." Use `@expo/ui` Switch/List if available for this SDK (check `expo-ui` skill), else RN `Switch` + `FlatList`.
   - Me tab: links to Settings. The Settings index links to Plugins and App lock.
 
-- [ ] **Step 1: Write failing tests.**
+- [x] **Step 1: Write failing tests.**
   - `plugins/index.test.ts`: `ALL_PLUGINS has the five ids, unique` and `journal/habits/recovery declare tabs; gamification/lifestats do not`.
   - `plugins.test.tsx` (render with a `PluginHost` built on `createTestDb()`): `lists every plugin with a switch` and `toggling a switch disables the plugin and persists it`, i.e. after pressing Habits' switch, `host.isEnabled('habits') === false` and the footer copy is present.
-- [ ] **Step 2: Run** `npx jest src/plugins src/screens` → FAIL.
-- [ ] **Step 3: Implement** stubs, provider, routes and screens. Placeholder tabs render `<Placeholder title="Journal" note="Coming in the next update" />`.
-- [ ] **Step 4: Run** `npm test` → all PASS. Run `npx tsc --noEmit` → no errors.
-- [ ] **Step 5: Verify on device.** `npx expo run:android`. Expected: tabs Journal, Habits, Recovery, Me. Settings → Plugins → turn Habits off: the Habits tab disappears. Kill and relaunch: still off, which proves the encrypted DB persisted. Turn it back on. Then `adb shell run-as app.selfjournal sh -c 'head -c 16 files/SQLite/selfjournal.db' | xxd` must **not** start with `SQLite format 3`, which proves the DB is encrypted.
-- [ ] **Step 6: Commit** `feat: app shell with plugin stubs, tab visibility, Plugins screen`.
+- [x] **Step 2: Run** `npx jest src/plugins src/screens` → FAIL.
+- [x] **Step 3: Implement** stubs, provider, routes and screens. Placeholder tabs render `<Placeholder title="Journal" note="Coming in the next update" />`.
+- [x] **Step 4: Run** `npm test` → all PASS. Run `npx tsc --noEmit` → no errors.
+- [x] **Step 5: Verify on device.** `npx expo run:android`. Expected: tabs Journal, Habits, Recovery, Me. Settings → Plugins → turn Habits off: the Habits tab disappears. Kill and relaunch: still off, which proves the encrypted DB persisted. Turn it back on. Then `adb shell run-as app.selfjournal sh -c 'head -c 16 files/SQLite/selfjournal.db' | xxd` must **not** start with `SQLite format 3`, which proves the DB is encrypted.
+- [x] **Step 6: Commit** `feat: app shell with plugin stubs, tab visibility, Plugins screen`.
 
 ---
 
