@@ -104,6 +104,14 @@ describe("JournalDayScreen", () => {
     expect(mockPush).toHaveBeenLastCalledWith({ pathname: "/journal/new", params: { day: shiftDay(today(), -1) } });
   });
 
+  it("opens the detail route when a card is pressed", async () => {
+    const { journal, view } = await setup();
+    const e = await journal.create({ day: today(), typeId: "journal.day", fields: { text: "Tap me" }, photoIds: [] });
+    await view();
+    await fireEvent.press(await screen.findByText("Tap me"));
+    expect(mockPush).toHaveBeenCalledWith({ pathname: "/journal/[id]", params: { id: e.id } });
+  });
+
   it("reloads when an entry is created", async () => {
     const { journal, view } = await setup();
     await view();

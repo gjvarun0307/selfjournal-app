@@ -46,6 +46,7 @@ function RootStack() {
         <Stack.Screen name="settings/app-lock" options={{ title: "App lock" }} />
         <Stack.Screen name="journal/new" options={{ title: "New entry" }} />
         <Stack.Screen name="journal/edit" options={{ title: "Entry" }} />
+        <Stack.Screen name="journal/[id]" options={{ title: "Entry" }} />
       </Stack.Protected>
       <Stack.Protected guard={!onboarded}>
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />

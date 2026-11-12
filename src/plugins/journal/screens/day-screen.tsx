@@ -13,8 +13,6 @@ import { EntryCard } from "./entry-card";
 
 export const EMPTY_DAY_COPY = "Nothing here yet. Add whatever's on your mind.";
 
-const noop = () => undefined;
-
 export function JournalDayScreen() {
   const { colors, space, radius, font } = useTheme();
   const host = useHost();
@@ -90,7 +88,7 @@ export function JournalDayScreen() {
         data={entries ?? []}
         keyExtractor={(e) => e.id}
         contentContainerStyle={{ padding: space.lg, gap: space.md, flexGrow: 1 }}
-        renderItem={({ item }) => <EntryCard entry={item} type={host.entryType(item.typeId)} onPress={noop} />}
+        renderItem={({ item }) => <EntryCard entry={item} type={host.entryType(item.typeId)} onPress={() => router.push({ pathname: "/journal/[id]", params: { id: item.id } })} />}
         ListEmptyComponent={
           entries ? (
             <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: space.xl }}>
