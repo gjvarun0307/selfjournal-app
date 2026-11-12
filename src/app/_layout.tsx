@@ -1,7 +1,8 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, type Theme as NavTheme } from "expo-router";
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, router, type Theme as NavTheme } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 
 import { AppProvider } from "@/core/app-provider";
+import { LockGate, useAppLock } from "@/screens/lock";
 import { useTheme } from "@/theme/use-theme";
 
 export default function RootLayout() {
@@ -24,12 +25,29 @@ export default function RootLayout() {
     <ThemeProvider value={navTheme}>
       <StatusBar style={scheme === "dark" ? "light" : "dark"} />
       <AppProvider>
-        <Stack screenOptions={{ contentStyle: { backgroundColor: colors.background } }}>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="settings/index" options={{ title: "Settings" }} />
-          <Stack.Screen name="settings/plugins" options={{ title: "Plugins" }} />
-        </Stack>
+        <LockGate onPinReset={() => router.push("/settings/app-lock")}>
+          <RootStack />
+        </LockGate>
       </AppProvider>
     </ThemeProvider>
+  );
+}
+
+/** First run shows only the onboarding screen; once it's done, only the app. */
+function RootStack() {
+  const { colors } = useTheme();
+  const { onboarded } = useAppLock();
+  return (
+    <Stack screenOptions={{ contentStyle: { backgroundColor: colors.background } }}>
+      <Stack.Protected guard={onboarded}>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/index" options={{ title: "Settings" }} />
+        <Stack.Screen name="settings/plugins" options={{ title: "Plugins" }} />
+        <Stack.Screen name="settings/app-lock" options={{ title: "App lock" }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!onboarded}>
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      </Stack.Protected>
+    </Stack>
   );
 }

@@ -19,8 +19,12 @@ export default function SettingsIndex() {
         note="Choose which parts of SelfJournal you use"
         onPress={() => router.push("/settings/plugins")}
       />
-      {/* App lock screens arrive in the next task; until then the row is shown but inactive. */}
-      <SettingsRow icon="lock-closed-outline" title="App lock" note="Coming in the next update" />
+      <SettingsRow
+        icon="lock-closed-outline"
+        title="App lock"
+        note="Keep your journal private with a PIN"
+        onPress={() => router.push("/settings/app-lock")}
+      />
     </ScrollView>
   );
 }
