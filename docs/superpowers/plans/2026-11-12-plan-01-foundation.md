@@ -94,7 +94,7 @@ CLAUDE.md  CONTRIBUTING.md
 **Interfaces:**
 - Produces: `npm test` runs Jest with `jest-expo` preset; `@/*` alias → `src/*`.
 
-- [ ] **Step 1: Generate the app in the scratchpad and merge into the repo.** The repo isn't empty, so generate elsewhere and copy:
+- [x] **Step 1: Generate the app in the scratchpad and merge into the repo.** The repo isn't empty, so generate elsewhere and copy:
 
 ```bash
 SCRATCH=$(mktemp -d) && cd "$SCRATCH" && npx create-expo-app@latest selfjournal --template default --yes
@@ -104,9 +104,9 @@ cat "$SCRATCH/selfjournal/.gitignore" >> /Users/varun/Hecker/Projects/selfjourna
 
 Then run `npm run reset-project` (answer to delete the example), and make sure routes live under `src/app/` (move `app/` → `src/app/` if the template didn't). Read `package.json` and note the Expo SDK version; read docs for **that** version only.
 
-- [ ] **Step 2: Configure `app.json`**: `name: "SelfJournal"`, `slug: "selfjournal"`, `scheme: "selfjournal"`, `android.package: "app.selfjournal"`, `android.allowBackup: false`, `platforms: ["android", "ios"]`, and the expo-sqlite plugin entry `["expo-sqlite", { "useSQLCipher": true }]`. Remove any web config. Append `/android` and `/ios` to `.gitignore` if absent.
+- [x] **Step 2: Configure `app.json`**: `name: "SelfJournal"`, `slug: "selfjournal"`, `scheme: "selfjournal"`, `android.package: "app.selfjournal"`, `android.allowBackup: false`, `platforms: ["android", "ios"]`, and the expo-sqlite plugin entry `["expo-sqlite", { "useSQLCipher": true }]`. Remove any web config. Append `/android` and `/ios` to `.gitignore` if absent.
 
-- [ ] **Step 3: Install packages.**
+- [x] **Step 3: Install packages.**
 
 ```bash
 npx expo install expo-dev-client expo-sqlite expo-secure-store expo-crypto expo-local-authentication expo-file-system
@@ -116,12 +116,12 @@ npm i @noble/hashes && npm i -D better-sqlite3 @types/better-sqlite3
 
 Add to `package.json`: `"jest": { "preset": "jest-expo" }` and script `"test": "jest"`.
 
-- [ ] **Step 4: Write `src/smoke.test.ts`**: `expect(1 + 1).toBe(2)`. Run `npm test` → PASS.
+- [x] **Step 4: Write `src/smoke.test.ts`**: `expect(1 + 1).toBe(2)`. Run `npm test` → PASS.
 
-- [ ] **Step 5: Verify native config.** Run `npx expo prebuild --platform android --clean`, then
+- [x] **Step 5: Verify native config.** Run `npx expo prebuild --platform android --clean`, then
 `grep allowBackup android/app/src/main/AndroidManifest.xml` → contains `android:allowBackup="false"`. Then `npx expo run:android` (needs Android Studio + an emulator or a USB device). Expected: dev build launches showing the reset blank screen. If no Android toolchain is available, stop and tell the user; don't switch to EAS cloud builds without asking.
 
-- [ ] **Step 6: Commit** (`git status` must show no `android/`):
+- [x] **Step 6: Commit** (`git status` must show no `android/`):
 
 ```bash
 git add -A && git commit -m "chore: scaffold Expo app with dev client, Jest, SQLCipher config, backups off"
