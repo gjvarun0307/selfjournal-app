@@ -176,14 +176,14 @@ git add -A && git commit -m "chore: scaffold Expo app with dev client, Jest, SQL
   - `class DbKeyError extends Error` (wrong key / unreadable file)
   - `openEncryptedDb(hexKey: string): Promise<Db>`: `openDatabaseAsync(DB_NAME)`, then as the first statement `PRAGMA key = "x'<hex>'"`, then `SELECT count(*) FROM sqlite_master`. If that fails, throw `DbKeyError`. Also sets `PRAGMA foreign_keys = ON`. Maps `Db` methods to `execAsync` / `runAsync` / `getAllAsync` / `getFirstAsync` / `withTransactionAsync`.
 
-- [ ] **Step 1: Write failing tests** with an in-memory fake `KeyStore`:
+- [x] **Step 1: Write failing tests** with an in-memory fake `KeyStore`:
   - `returns the stored key when present`.
   - `creates and stores a new key when none exists and there is no DB file`: result matches `/^[0-9a-f]{64}$/` and is saved.
   - `throws MissingDbKeyError when the DB file exists but the key is gone` (Review Focus 2), and `set` is **never** called.
-- [ ] **Step 2: Run** `npx jest src/core/security/db-key` → FAIL.
-- [ ] **Step 3: Implement** `db-key.ts`. Production passes `randomHex32`. Then implement `expo-db.ts`. It isn't unit-tested (it's native) and gets verified on device in Task 7.
-- [ ] **Step 4: Run** `npx jest src/core/security/db-key` → PASS.
-- [ ] **Step 5: Commit** `feat(core): keystore-held SQLCipher key with missing-key guard`.
+- [x] **Step 2: Run** `npx jest src/core/security/db-key` → FAIL.
+- [x] **Step 3: Implement** `db-key.ts`. Production passes `randomHex32`. Then implement `expo-db.ts`. It isn't unit-tested (it's native) and gets verified on device in Task 7.
+- [x] **Step 4: Run** `npx jest src/core/security/db-key` → PASS.
+- [x] **Step 5: Commit** `feat(core): keystore-held SQLCipher key with missing-key guard`.
 
 ---
 
