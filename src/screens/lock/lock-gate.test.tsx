@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react-native";
 import * as LocalAuthentication from "expo-local-authentication";
+import * as ScreenCapture from "expo-screen-capture";
 import { AppState, Text, type AppStateStatus } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -12,14 +13,26 @@ import { PluginHost } from "@/core/plugins/host";
 import { createAppLockStore, type AppLockStore } from "@/core/security/app-lock-store";
 import { createAppSettings } from "@/core/settings/app-settings";
 import { ALL_PLUGINS } from "@/plugins";
-import { LockGate, NO_DEVICE_CREDENTIAL_MESSAGE, WRONG_PIN_MESSAGE } from "./index";
+import { AppLockedError, LockGate, NO_DEVICE_CREDENTIAL_MESSAGE, useAppLock, WRONG_PIN_MESSAGE, type AppLock } from "./index";
 
 jest.mock("expo-local-authentication", () => ({
   SecurityLevel: { NONE: 0, SECRET: 1, BIOMETRIC_WEAK: 2, BIOMETRIC_STRONG: 3 },
   getEnrolledLevelAsync: jest.fn(),
   authenticateAsync: jest.fn(),
 }));
+jest.mock("expo-screen-capture", () => ({
+  preventScreenCaptureAsync: jest.fn(() => Promise.resolve()),
+  allowScreenCaptureAsync: jest.fn(() => Promise.resolve()),
+}));
 const mockedAuth = jest.mocked(LocalAuthentication);
+const mockedCapture = jest.mocked(ScreenCapture);
+
+/** The app under the gate. Keeps the latest `useAppLock()` value so tests can call it like a screen would. */
+let appLock: AppLock | null = null;
+function App() {
+  appLock = useAppLock();
+  return <Text>app content</Text>;
+}
 
 const SALT = "0123456789abcdef0123456789abcdef";
 const METRICS = { frame: { x: 0, y: 0, width: 400, height: 800 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
@@ -41,6 +54,9 @@ let appStateListener: ((state: AppStateStatus) => void) | null = null;
 
 beforeEach(() => {
   appStateListener = null;
+  appLock = null;
+  mockedCapture.preventScreenCaptureAsync.mockClear();
+  mockedCapture.allowScreenCaptureAsync.mockClear();
   jest.spyOn(AppState, "addEventListener").mockImplementation((_type, listener) => {
     appStateListener = listener as (state: AppStateStatus) => void;
     return { remove: jest.fn() } as unknown as ReturnType<typeof AppState.addEventListener>;
@@ -58,7 +74,7 @@ async function renderGate(services: AppServices, store: AppLockStore, onPinReset
     <SafeAreaProvider initialMetrics={METRICS}>
       <AppProvider boot={() => Promise.resolve(services)}>
         <LockGate store={store} onPinReset={onPinReset}>
-          <Text>app content</Text>
+          <App />
         </LockGate>
       </AppProvider>
     </SafeAreaProvider>,
@@ -76,6 +92,17 @@ async function typePin(store: AppLockStore, pin: string) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   check.mockRestore();
+}
+
+/** Runs `fn` inside act and returns what it rejected with (or null). */
+async function rejectionOf(fn: () => Promise<unknown>): Promise<unknown> {
+  let error: unknown = null;
+  await act(async () => {
+    await fn().catch((e: unknown) => {
+      error = e;
+    });
+  });
+  return error;
 }
 
 async function moveApp(state: AppStateStatus, at: number) {
@@ -158,5 +185,79 @@ describe("LockGate", () => {
     expect(mockedAuth.authenticateAsync).not.toHaveBeenCalled();
     expect(onPinReset).not.toHaveBeenCalled();
     expect((await store.getConfig()).hasPin).toBe(true);
+  });
+
+  it("while locked, a screen left open underneath cannot remove the PIN", async () => {
+    const { services, store } = await setup({ pin: "2468" });
+    await renderGate(services, store);
+    await screen.findByText("Welcome back");
+    await typePin(store, "2468");
+    await screen.findByText("app content");
+    // e.g. a "Remove PIN" confirmation that was open when the user left the app
+    const removePinFromBefore = appLock!.removePin;
+
+    await moveApp("background", 1_000);
+    await moveApp("active", 1_000 + 30_000);
+    expect(screen.getByText("Welcome back")).toBeTruthy();
+
+    expect(await rejectionOf(removePinFromBefore)).toBeInstanceOf(AppLockedError);
+    expect((await store.getConfig()).hasPin).toBe(true);
+    expect(screen.getByText("Welcome back")).toBeTruthy();
+    expect(screen.queryByText("app content")).toBeNull();
+    expect(await rejectionOf(() => appLock!.savePin("1357"))).toBeInstanceOf(AppLockedError);
+    expect(await rejectionOf(() => appLock!.setBiometrics(true))).toBeInstanceOf(AppLockedError);
+    expect(await store.checkPin("2468")).toBe(true);
+    expect((await store.getConfig()).biometricsEnabled).toBe(false);
+  });
+
+  it("hides the app behind a privacy cover while it is in the background, when the lock is on", async () => {
+    const { services, store } = await setup({ pin: "2468" });
+    await renderGate(services, store);
+    await screen.findByText("Welcome back");
+    await typePin(store, "2468");
+    await screen.findByText("app content");
+
+    await moveApp("background", 1_000);
+    expect(screen.getByTestId("privacy-cover")).toBeTruthy();
+    expect(screen.queryByText("app content")).toBeNull();
+
+    await moveApp("active", 2_000);
+    expect(screen.queryByTestId("privacy-cover")).toBeNull();
+    expect(screen.getByText("app content")).toBeTruthy();
+
+    await moveApp("inactive", 3_000);
+    expect(screen.getByTestId("privacy-cover")).toBeTruthy();
+  });
+
+  it("shows no privacy cover when the lock is off", async () => {
+    const { services, store } = await setup();
+    await renderGate(services, store);
+    await screen.findByText("app content");
+
+    await moveApp("background", 1_000);
+    expect(screen.queryByTestId("privacy-cover")).toBeNull();
+    expect(screen.getByText("app content")).toBeTruthy();
+  });
+
+  it("blocks screen capture (and the Recents thumbnail) only while a PIN is set", async () => {
+    const { services, store } = await setup();
+    await renderGate(services, store);
+    await screen.findByText("app content");
+    expect(mockedCapture.preventScreenCaptureAsync).not.toHaveBeenCalled();
+    expect(mockedCapture.allowScreenCaptureAsync).not.toHaveBeenCalled();
+
+    await act(() => appLock!.savePin("2468"));
+    expect(mockedCapture.preventScreenCaptureAsync).toHaveBeenCalledTimes(1);
+    expect(mockedCapture.allowScreenCaptureAsync).not.toHaveBeenCalled();
+
+    await act(() => appLock!.removePin());
+    expect(mockedCapture.allowScreenCaptureAsync).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks screen capture from cold start when a PIN is already set", async () => {
+    const { services, store } = await setup({ pin: "2468" });
+    await renderGate(services, store);
+    await screen.findByText("Welcome back");
+    expect(mockedCapture.preventScreenCaptureAsync).toHaveBeenCalledTimes(1);
   });
 });

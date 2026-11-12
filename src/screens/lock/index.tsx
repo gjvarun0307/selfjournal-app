@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as LocalAuthentication from "expo-local-authentication";
+import * as ScreenCapture from "expo-screen-capture";
 import { createContext, use, useEffect, useRef, useState, type ReactNode } from "react";
 import { ActivityIndicator, AppState, BackHandler, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,11 +24,28 @@ type LoadState =
   | { status: "failed" }
   | { status: "ready"; config: AppLockConfig; onboarded: boolean };
 
+/** Thrown when something tries to change the lock settings while the app is locked. */
+export class AppLockedError extends Error {
+  constructor() {
+    super("The app is locked; lock settings can't be changed until it is unlocked.");
+    this.name = "AppLockedError";
+  }
+}
+
 export interface AppLock {
   config: AppLockConfig;
+  /**
+   * True while the lock screen is up. Anything that renders in its own window above the lock
+   * overlay must close itself when this turns true: React Native `<Modal>`s and `Alert`s draw above
+   * every view, including the overlay, so a modal editor left open would show over the lock.
+   */
+  locked: boolean;
   /** Whether the first-run screen has been finished in this session (or an earlier one). */
   onboarded: boolean;
-  /** Hashes and stores a new PIN with a fresh salt. The lock does not engage until the app is next away. */
+  /**
+   * Hashes and stores a new PIN with a fresh salt. The lock does not engage until the app is next away.
+   * This, `removePin` and `setBiometrics` reject with `AppLockedError` while the app is locked.
+   */
   savePin(pin: string): Promise<void>;
   removePin(): Promise<void>;
   setBiometrics(on: boolean): Promise<void>;
@@ -50,9 +68,33 @@ export function useAppLock(): AppLock {
   return lock;
 }
 
+/** Applies Android FLAG_SECURE while a PIN is set: no screenshots, and a blank Recents thumbnail. */
+function useScreenCaptureBlock(blocked: boolean | null) {
+  const applied = useRef(false);
+  useEffect(() => {
+    if (blocked === null) return;
+    if (blocked && !applied.current) {
+      applied.current = true;
+      ScreenCapture.preventScreenCaptureAsync(CAPTURE_KEY).catch(() =>
+        console.warn("[AppLock] could not hide the app from screenshots and Recents"),
+      );
+    } else if (!blocked && applied.current) {
+      applied.current = false;
+      ScreenCapture.allowScreenCaptureAsync(CAPTURE_KEY).catch(() =>
+        console.warn("[AppLock] could not allow screenshots again"),
+      );
+    }
+  }, [blocked]);
+}
+
+const CAPTURE_KEY = "app-lock";
+
 /**
  * Loads the app-lock settings, then renders the app with the lock screen over it when needed. Nothing
  * from the app is rendered until the settings are known, so a locked app never flashes its content.
+ *
+ * Once locked, only a correct PIN, biometrics or "Forgot PIN?" can unlock: the lock does not depend
+ * on the (mutable) config, and the settings mutators refuse to run while locked.
  */
 export function LockGate({
   children,
@@ -68,11 +110,19 @@ export function LockGate({
   const settings = useAppSettings();
   const [store] = useState(() => injectedStore ?? createAppLockStore(settings));
   const [state, setState] = useState<LoadState>({ status: "loading" });
-  const [locked, setLocked] = useState(true);
+  const [locked, setLockedState] = useState(true);
+  // Shown while the app is away (when the lock is on), until the lock decision on return.
+  const [covered, setCovered] = useState(false);
 
+  const lockedRef = useRef(true);
   const lockEnabledRef = useRef(false);
   const backgroundedAt = useRef<number | null>(null);
   const systemPrompts = useRef(0);
+
+  const setLocked = (next: boolean) => {
+    lockedRef.current = next;
+    setLockedState(next);
+  };
 
   useEffect(() => {
     let live = true;
@@ -81,7 +131,8 @@ export function LockGate({
         if (!live) return;
         lockEnabledRef.current = config.lockEnabled;
         // Cold start: locked whenever a PIN is set.
-        setLocked(config.lockEnabled);
+        lockedRef.current = config.lockEnabled;
+        setLockedState(config.lockEnabled);
         setState({ status: "ready", config, onboarded });
       },
       () => live && setState({ status: "failed" }),
@@ -94,18 +145,27 @@ export function LockGate({
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
       if (systemPrompts.current > 0) return;
-      if (next === "background") {
-        backgroundedAt.current ??= Date.now();
-      } else if (next === "active") {
+      if (next === "active") {
         const away = { lockEnabled: lockEnabledRef.current, backgroundedAt: backgroundedAt.current };
         backgroundedAt.current = null;
-        if (shouldLock(away, Date.now())) setLocked(true);
+        if (shouldLock(away, Date.now())) {
+          lockedRef.current = true;
+          setLockedState(true);
+        }
+        setCovered(false);
+        return;
       }
+      // "inactive" (app switcher, notification shade on iOS) or "background".
+      if (lockEnabledRef.current) setCovered(true);
+      if (next === "background") backgroundedAt.current ??= Date.now();
     });
     return () => sub.remove();
   }, []);
 
-  const showLock = state.status === "ready" && locked && state.config.lockEnabled;
+  const showLock = state.status === "ready" && locked;
+  const hideApp = showLock || covered;
+
+  useScreenCaptureBlock(state.status === "ready" ? state.config.lockEnabled : null);
 
   // While locked, the back button must not navigate the app hidden underneath.
   useEffect(() => {
@@ -123,21 +183,20 @@ export function LockGate({
     setState((s) => (s.status === "ready" ? { ...s, config } : s));
   };
 
+  /** Settings changes are refused while locked, so a screen left open under the lock can't act. */
+  const whileUnlocked = async (change: () => Promise<void>) => {
+    if (lockedRef.current) throw new AppLockedError();
+    await change();
+    await refresh();
+  };
+
   const lock: AppLock = {
     config: state.config,
+    locked: showLock,
     onboarded: state.onboarded,
-    async savePin(pin) {
-      await store.setPin(pin, newPinSalt());
-      await refresh();
-    },
-    async removePin() {
-      await store.clearPin();
-      await refresh();
-    },
-    async setBiometrics(on) {
-      await store.setBiometrics(on);
-      await refresh();
-    },
+    savePin: (pin) => whileUnlocked(() => store.setPin(pin, newPinSalt())),
+    removePin: () => whileUnlocked(() => store.clearPin()),
+    setBiometrics: (on) => whileUnlocked(() => store.setBiometrics(on)),
     markOnboarded: () => store.markOnboarded(),
     async finishOnboarding() {
       await store.markOnboarded();
@@ -156,8 +215,10 @@ export function LockGate({
 
   const unlock = () => setLocked(false);
 
+  // Only reachable from the lock screen, after the phone's own credential was confirmed.
   const forgotPinReset = async () => {
-    await lock.removePin();
+    await store.clearPin();
+    await refresh();
     setLocked(false);
     onPinReset();
   };
@@ -167,8 +228,8 @@ export function LockGate({
       <View style={{ flex: 1 }}>
         <View
           style={{ flex: 1 }}
-          importantForAccessibility={showLock ? "no-hide-descendants" : "auto"}
-          accessibilityElementsHidden={showLock}
+          importantForAccessibility={hideApp ? "no-hide-descendants" : "auto"}
+          accessibilityElementsHidden={hideApp}
         >
           {children}
         </View>
@@ -176,9 +237,23 @@ export function LockGate({
           <View style={StyleSheet.absoluteFill}>
             <LockScreen store={store} onUnlock={unlock} onPinReset={forgotPinReset} />
           </View>
+        ) : covered ? (
+          <View testID="privacy-cover" style={StyleSheet.absoluteFill}>
+            <PrivacyCover />
+          </View>
         ) : null}
       </View>
     </AppLockContext>
+  );
+}
+
+/** Plain, opaque cover with no app content, shown while the app is away. */
+function PrivacyCover() {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
+      <Ionicons name="lock-closed-outline" size={32} color={colors.accent} />
+    </View>
   );
 }
 

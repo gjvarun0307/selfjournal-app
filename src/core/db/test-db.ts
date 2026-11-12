@@ -21,3 +21,20 @@ export function createTestDb(): Db {
     },
   });
 }
+
+/**
+ * Wraps a Db so that, inside a transaction, any write whose first parameter is `key` fails, as if the
+ * app were killed mid-write. Writes outside transactions are unaffected.
+ */
+export function failWritesTo(db: Db, key: string): Db {
+  return {
+    ...db,
+    transaction: (fn) =>
+      db.transaction((tx) =>
+        fn({
+          ...tx,
+          run: (sql, params) => (params?.[0] === key ? Promise.reject(new Error('killed')) : tx.run(sql, params)),
+        }),
+      ),
+  };
+}

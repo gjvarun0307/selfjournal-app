@@ -1,4 +1,14 @@
-import { hashPin, hashPinAsync, isValidPin, LOCK_GRACE_MS, shouldLock, verifyPin, verifyPinAsync } from "@/core/security/pin";
+import {
+  hashPin,
+  hashPinAsync,
+  isValidPin,
+  LEGACY_PIN_PBKDF2_ITERATIONS,
+  LOCK_GRACE_MS,
+  PIN_PBKDF2_ITERATIONS,
+  shouldLock,
+  verifyPin,
+  verifyPinAsync,
+} from "@/core/security/pin";
 
 const SALT_A = "00112233445566778899aabbccddeeff";
 const SALT_B = "ffeeddccbbaa99887766554433221100";
@@ -16,11 +26,22 @@ describe("pin hashing", () => {
     expect(hashPin("2468", SALT_A)).not.toBe(hashPin("2468", SALT_B));
   });
 
+  it("uses 2,000 iterations by default and honours an explicit count", () => {
+    expect(PIN_PBKDF2_ITERATIONS).toBe(2_000);
+    expect(LEGACY_PIN_PBKDF2_ITERATIONS).toBe(100_000);
+    expect(hashPin("2468", SALT_A)).toBe(hashPin("2468", SALT_A, PIN_PBKDF2_ITERATIONS));
+    const legacy = hashPin("2468", SALT_A, LEGACY_PIN_PBKDF2_ITERATIONS);
+    expect(legacy).not.toBe(hashPin("2468", SALT_A));
+    expect(verifyPin("2468", SALT_A, legacy, LEGACY_PIN_PBKDF2_ITERATIONS)).toBe(true);
+    expect(verifyPin("2468", SALT_A, legacy)).toBe(false);
+  });
+
   it("async variants agree with the sync ones", async () => {
     const hash = hashPin("2468", SALT_A);
     await expect(hashPinAsync("2468", SALT_A)).resolves.toBe(hash);
     await expect(verifyPinAsync("2468", SALT_A, hash)).resolves.toBe(true);
     await expect(verifyPinAsync("1357", SALT_A, hash)).resolves.toBe(false);
+    await expect(hashPinAsync("2468", SALT_A, 10)).resolves.toBe(hashPin("2468", SALT_A, 10));
   });
 });
 

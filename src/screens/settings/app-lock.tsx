@@ -1,11 +1,14 @@
 import * as LocalAuthentication from "expo-local-authentication";
 import { useEffect, useState } from "react";
-import { Alert, ScrollView, Switch, Text, View } from "react-native";
+import { ScrollView, Switch, Text, View } from "react-native";
 
 import { useAppLock } from "@/screens/lock";
+import { CalmButton } from "@/screens/lock/calm-button";
 import { PinSetup } from "@/screens/lock/pin-setup";
 import { SettingsRow } from "@/screens/settings/settings-row";
 import { useTheme } from "@/theme/use-theme";
+
+const COULD_NOT_CHANGE = "That couldn't be changed just now. Please try again.";
 
 async function biometricsAvailable(): Promise<boolean> {
   const [hardware, enrolled] = await Promise.all([
@@ -23,6 +26,7 @@ export function AppLockSettingsScreen() {
   const [settingPin, setSettingPin] = useState(false);
   const [canUseBiometrics, setCanUseBiometrics] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -42,23 +46,18 @@ export function AppLockSettingsScreen() {
     setNote(changing ? "Your new PIN is saved." : "Your PIN is saved. App lock is on.");
   };
 
-  const confirmRemove = () => {
-    Alert.alert("Remove your PIN?", "SelfJournal will open without asking for it. You can set a new one any time.", [
-      { text: "Keep it", style: "cancel" },
-      {
-        text: "Remove",
-        onPress: () => {
-          lock.removePin().then(
-            () => setNote("Your PIN is removed. App lock is off."),
-            () => setNote("That couldn't be changed just now. Please try again."),
-          );
-        },
-      },
-    ]);
+  // The confirmation is part of this screen rather than a system Alert: an Alert is its own window and
+  // would sit above the lock screen if the app locked while it was open.
+  const removePin = () => {
+    setConfirmingRemove(false);
+    lock.removePin().then(
+      () => setNote("Your PIN is removed. App lock is off."),
+      () => setNote(COULD_NOT_CHANGE),
+    );
   };
 
   const toggleBiometrics = (on: boolean) => {
-    lock.setBiometrics(on).catch(() => setNote("That couldn't be changed just now. Please try again."));
+    lock.setBiometrics(on).catch(() => setNote(COULD_NOT_CHANGE));
   };
 
   if (settingPin) {
@@ -99,7 +98,38 @@ export function AppLockSettingsScreen() {
               setSettingPin(true);
             }}
           />
-          <SettingsRow icon="lock-open-outline" title="Remove PIN" note="Turns app lock off" onPress={confirmRemove} />
+          {confirmingRemove ? (
+            <View
+              style={{
+                gap: space.md,
+                padding: space.lg,
+                backgroundColor: colors.surface,
+                borderRadius: radius.md,
+                borderCurve: "continuous",
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+            >
+              <Text accessibilityRole="header" style={{ color: colors.text, fontSize: font.body, fontWeight: "600" }}>
+                Remove your PIN?
+              </Text>
+              <Text style={{ color: colors.textMuted, fontSize: font.body, lineHeight: font.body * 1.5 }}>
+                SelfJournal will open without asking for it. You can set a new one any time.
+              </Text>
+              <CalmButton label="Remove PIN" variant="secondary" onPress={removePin} />
+              <CalmButton label="Keep it" variant="quiet" onPress={() => setConfirmingRemove(false)} />
+            </View>
+          ) : (
+            <SettingsRow
+              icon="lock-open-outline"
+              title="Remove PIN"
+              note="Turns app lock off"
+              onPress={() => {
+                setNote(null);
+                setConfirmingRemove(true);
+              }}
+            />
+          )}
           {canUseBiometrics ? (
             <View
               style={{

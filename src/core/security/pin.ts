@@ -3,8 +3,19 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
 import * as Crypto from "expo-crypto";
 
-/** PBKDF2-SHA256 parameters for the app-lock PIN. Changing them invalidates every stored PIN. */
-export const PIN_ITERATIONS = 100_000;
+/**
+ * PBKDF2-SHA256 iterations for the app-lock PIN.
+ *
+ * Threat model: the PIN hash is stored only inside the SQLCipher database, whose key lives in the
+ * Android Keystore (and is never derived from the PIN). Reading the hash already requires breaking
+ * that layer, so the KDF is a second layer, not the main defence. A 4–8 digit PIN has at most 10^8
+ * candidates whatever the iteration count, so a high count buys little against an offline attacker
+ * but costs every user seconds on each unlock (100k took ~13 s on the emulator's release build).
+ * The count is stored next to each hash (`lock.pinIterations`), so it can change later.
+ */
+export const PIN_PBKDF2_ITERATIONS = 2_000;
+/** The count used before it was stored with the hash. A hash with no stored count used this. */
+export const LEGACY_PIN_PBKDF2_ITERATIONS = 100_000;
 export const PIN_HASH_BYTES = 32;
 
 /** How long the app may sit in the background before it asks for the PIN again. */
@@ -23,20 +34,27 @@ export function isValidPin(pin: string): boolean {
   return PIN_PATTERN.test(pin);
 }
 
-const opts = { c: PIN_ITERATIONS, dkLen: PIN_HASH_BYTES };
 // pbkdf2Async yields to the event loop every `asyncTick` ms. On React Native each yield costs
 // about a frame, so noble's 10 ms default roughly triples the total time; 100 ms keeps the JS
 // thread responsive enough (taps and AppState still get through) at a small cost.
-const asyncOpts = { ...opts, asyncTick: 100 };
+const ASYNC_TICK_MS = 100;
 
 /** Synchronous hash. Blocks the JS thread for the whole derivation, so UI code uses `hashPinAsync`. */
-export function hashPin(pin: string, saltHex: string): string {
-  return bytesToHex(pbkdf2(sha256, utf8ToBytes(pin), hexToBytes(saltHex), opts));
+export function hashPin(pin: string, saltHex: string, iterations = PIN_PBKDF2_ITERATIONS): string {
+  return bytesToHex(
+    pbkdf2(sha256, utf8ToBytes(pin), hexToBytes(saltHex), { c: iterations, dkLen: PIN_HASH_BYTES }),
+  );
 }
 
 /** Same result as `hashPin`, but yields to the event loop while deriving so the UI stays responsive. */
-export async function hashPinAsync(pin: string, saltHex: string): Promise<string> {
-  return bytesToHex(await pbkdf2Async(sha256, utf8ToBytes(pin), hexToBytes(saltHex), asyncOpts));
+export async function hashPinAsync(pin: string, saltHex: string, iterations = PIN_PBKDF2_ITERATIONS): Promise<string> {
+  return bytesToHex(
+    await pbkdf2Async(sha256, utf8ToBytes(pin), hexToBytes(saltHex), {
+      c: iterations,
+      dkLen: PIN_HASH_BYTES,
+      asyncTick: ASYNC_TICK_MS,
+    }),
+  );
 }
 
 /** Compares two hex strings in time that depends only on their length. */
@@ -47,12 +65,17 @@ function constantTimeEqualHex(a: string, b: string): boolean {
   return diff === 0;
 }
 
-export function verifyPin(pin: string, saltHex: string, hashHex: string): boolean {
-  return constantTimeEqualHex(hashPin(pin, saltHex), hashHex.toLowerCase());
+export function verifyPin(pin: string, saltHex: string, hashHex: string, iterations = PIN_PBKDF2_ITERATIONS): boolean {
+  return constantTimeEqualHex(hashPin(pin, saltHex, iterations), hashHex.toLowerCase());
 }
 
-export async function verifyPinAsync(pin: string, saltHex: string, hashHex: string): Promise<boolean> {
-  return constantTimeEqualHex(await hashPinAsync(pin, saltHex), hashHex.toLowerCase());
+export async function verifyPinAsync(
+  pin: string,
+  saltHex: string,
+  hashHex: string,
+  iterations = PIN_PBKDF2_ITERATIONS,
+): Promise<boolean> {
+  return constantTimeEqualHex(await hashPinAsync(pin, saltHex, iterations), hashHex.toLowerCase());
 }
 
 export interface LockState {
