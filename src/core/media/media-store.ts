@@ -15,8 +15,8 @@ export const MEDIA_KEY_SETTING = "media.key";
 
 export const FULL_MAX_EDGE = 2048;
 export const FULL_COMPRESS = 0.85;
-export const THUMB_MAX_EDGE = 320;
-export const THUMB_COMPRESS = 0.7;
+export const THUMB_MAX_EDGE = 512;
+export const THUMB_COMPRESS = 0.8;
 
 const PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHE_LIMIT: Record<MediaSize, number> = { thumb: 60, full: 4 };
