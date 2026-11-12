@@ -15,6 +15,25 @@ SelfJournal is local-only and plugin-based. Features live in plugins under `src/
 7. Inside `db.transaction(async tx => …)` use only `tx`, never the outer `db`. Never emit or await events inside `db.transaction`; emit after it commits (another plugin's handler using `ctx.db` would deadlock).
 8. Colours, spacing, radii and fonts come from `src/theme/tokens.ts`. Add colocated `*.test.ts(x)` tests.
 
+## Contributing entry types
+A plugin can add journal entry types with `PluginDefinition.entryTypes`; Journal lists them without importing your plugin.
+- `id` must be `<pluginId>.<name>` (e.g. `habits.win`). The host rejects other prefixes, duplicate ids, duplicate field keys, and a `titleField` that isn't a `text` field.
+- `fields`: `{ key, label, kind, required?, placeholder? }` where `kind` is `text`, `longText`, `number` or `rating`. Keep validation copy calm.
+- `photos: true` shows the photo picker. `titleField` names the `text` field used as the card title.
+- `card: { variant: "cover" | "note", tint }`: `cover` shows the first photo big, `note` is text-only; `tint` is one of `sky`, `sage`, `peach`, `lilac`, `sand`, `mint`.
+- `templateId` is the canvas template id (used in Plan 7); pick a stable short string.
+- Entries of a type still list, open and delete if your plugin is later turned off.
+
+## Plugin screens and routes
+Put screens in `src/plugins/<id>/screens/` (with colocated tests). Add a thin route file in `src/app/` that only imports and renders the screen, and register it in `src/app/_layout.tsx`. After adding a route, start Metro once so `typedRoutes` regenerates `.expo/types/router.d.ts`. Don't use RN `<Modal>` or `Alert` for confirmations (they render above the lock overlay); use inline views.
+
+## Using `ctx.media`
+`ctx.media` is the shared encrypted photo store.
+1. `const rec = await ctx.media.importImage(uri)` downscales, encrypts and stores the image and deletes the picker's temp file. It stays `pending` until committed.
+2. Inside your own transaction, with `tx`: `await ctx.media.commit(tx, [rec.id])` and write the row that references `rec.id`.
+3. After the commit, call `ctx.media.remove(ids)` for photos you dropped or deleted. If the user abandons the screen, remove the imported ids; anything left over is swept on next boot.
+4. Show photos with `<MediaImage>` from `@/core/media/media-image`. Never write decrypted bytes to disk. A missing photo rejects with `MediaUnavailableError`; show a calm placeholder.
+
 ### Example
 ```ts
 import type { PluginDefinition } from "@/core/plugins/types";

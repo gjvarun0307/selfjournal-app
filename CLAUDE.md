@@ -12,14 +12,16 @@ Plans run task-by-task with `superpowers:subagent-driven-development`; progress 
 - Load the relevant installed expo skills (expo-overview, expo-router, expo-ui, expo-native-ui, expo-design-system, expo-animation) before UI/Expo work. Don't install new skills without asking the user.
 
 ## Folder map (`@/` = `src/`)
-- `src/app/` Expo Router routes only (`(tabs)/`, `settings/`, `onboarding.tsx`, `_layout.tsx`); thin, they render `src/screens/*`.
+- `src/app/` Expo Router routes only (`(tabs)/`, `settings/` incl. `settings/reminders`, `journal/` (`new`, `edit`, `[id]`), `onboarding.tsx`, `_layout.tsx`); thin, they render `src/screens/*` or `src/plugins/<id>/screens/*`.
 - `src/screens/` screens: `lock/` (LockGate, `useAppLock`, PIN pad), `onboarding/`, `settings/`.
 - `src/core/db/` `types.ts` (`Db`), `serialized-db.ts` (FIFO + transactions), `migrations.ts`, `core-migrations.ts`, `expo-db.ts` (SQLCipher), `test-db.ts` (better-sqlite3 for tests).
 - `src/core/security/` `db-key.ts` (key in SecureStore), `pin.ts` (PBKDF2 hash, grace period), `app-lock-store.ts`.
+- `src/core/entry-types/` `types.ts` (`EntryTypeDefinition`, field kinds), `validate.ts` (type-id/field checks, `normalizeFields`). Plugins contribute types via `PluginDefinition.entryTypes`.
+- `src/core/media/` encrypted photo store: `media-store.ts` (import/commit/load/remove/sweep), `expo-media.ts` (AES-GCM, files in `files/media/<id>.full|.thumb`), `test-media.ts`, `use-media-uri.ts`, `media-image.tsx` (`<MediaImage>`).
 - `src/core/events/` `bus.ts` (`EventBus`), `types.ts` (`AppEvents`, augmented per plugin).
 - `src/core/plugins/` `types.ts` (`PluginDefinition`, `PluginContext`, `PluginTab`), `host.ts` (migrations + activation), `tabs.ts`, `use-enabled-ids.ts`.
 - `src/core/settings/app-settings.ts` key/value settings in the DB. `src/core/app-provider.tsx` boots services; hooks `useHost`, `useBus`, `useAppSettings`, `useEnabledPlugins`.
-- `src/plugins/<id>/index.ts` one plugin each; `src/plugins/index.ts` exports `ALL_PLUGINS`.
+- `src/plugins/<id>/index.ts` one plugin each; its screens in `src/plugins/<id>/screens/`; `src/plugins/index.ts` exports `ALL_PLUGINS`.
 - `src/theme/` `tokens.ts` (single source of colours/spacing/radii/fonts), `use-theme.ts`.
 - Tests colocated: `foo.ts` -> `foo.test.ts(x)`.
 
@@ -45,6 +47,8 @@ Plans run task-by-task with `superpowers:subagent-driven-development`; progress 
 - Any RN `<Modal>` or `Alert` renders above the app-lock overlay. Screens that open one must close it when the app locks (`locked` from `useAppLock()`).
 - With app lock on, FLAG_SECURE (expo-screen-capture) blocks screenshots and Recents thumbnails. To check locked states on a device use `uiautomator dump`, not screencap.
 - Check DB encryption on device: `adb exec-out run-as app.selfjournal head -c 16 files/SQLite/selfjournal.db | xxd` must NOT start with "SQLite format 3". (The quoted `adb shell … sh -c '…'` form silently prints nothing.)
+- Decrypted media only ever exists as in-memory `data:` URIs shown through `<MediaImage>` (expo-image `cachePolicy="none"`). Never write decrypted bytes to disk. Picker/manipulator temp files are deleted right after import.
+- `typedRoutes` needs Metro to regenerate `.expo/types/router.d.ts` after you add a route file; `tsc` fails on `router.push("/new/route")` until Metro has run once (or the route file exists and Metro restarted).
 - Migration ids are `<owner>:NNN` (`core:001`, `habits:001`). Never edit an applied migration; add a new one.
 
 ## Adding a plugin
