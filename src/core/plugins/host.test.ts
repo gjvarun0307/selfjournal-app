@@ -1,7 +1,4 @@
-import { createTestDb } from "@/core/db/test-db";
-import { EventBus } from "@/core/events/bus";
-import { createAppSettings } from "@/core/settings/app-settings";
-import type { Db } from "@/core/db/types";
+import { createTestServices } from "@/core/test-services";
 import { PluginHost } from "./host";
 import type { PluginDefinition } from "./types";
 
@@ -11,9 +8,9 @@ declare module "@/core/events/types" {
   }
 }
 
-function setup(db: Db = createTestDb()) {
-  const bus = new EventBus({ onError: jest.fn() });
-  return { db, bus, ctx: { db, bus, settings: createAppSettings(db) } };
+function setup() {
+  const services = createTestServices();
+  return { db: services.db, bus: services.bus, ctx: services };
 }
 
 const plain = (id: string): PluginDefinition => ({ id, name: id, description: id, icon: id });
@@ -136,5 +133,120 @@ describe("PluginHost", () => {
     await expect(host.start()).resolves.toBeUndefined();
     expect(onError).toHaveBeenCalledTimes(1);
     expect(host.isEnabled("bad")).toBe(true);
+  });
+
+  it("contextFor gives each plugin scoped settings", async () => {
+    const { ctx } = setup();
+    const host = new PluginHost([plain("a"), plain("b")], ctx);
+    await host.start();
+    await host.contextFor("a").settings.set("k", "1");
+    expect(await ctx.settings.get("plugin.a.k")).toBe("1");
+    expect(await host.contextFor("b").settings.get("k")).toBeNull();
+    expect(host.contextFor("a")).toBe(host.contextFor("a"));
+    expect(host.contextFor("a").pluginId).toBe("a");
+    expect(() => host.contextFor("zzz")).toThrow();
+  });
+
+  it("contextFor shares the core media store; its key is out of reach of plugin settings", async () => {
+    const { ctx } = setup();
+    const host = new PluginHost([plain("a")], ctx);
+    await host.start();
+    expect(host.contextFor("a").media).toBe(ctx.media);
+    await ctx.media.importImage("file:///cache/a.jpg");
+    expect(await ctx.settings.get("media.key")).toMatch(/^[0-9a-f]{64}$/);
+    expect(await host.contextFor("a").settings.get("media.key")).toBeNull();
+  });
+
+  it("host drops a plugin's subscriptions on disable without a cleanup", async () => {
+    const { ctx, bus } = setup();
+    const h = jest.fn();
+    const def: PluginDefinition = {
+      ...plain("a"),
+      activate(c) {
+        c.bus.on("test.ping", h);
+      },
+    };
+    const host = new PluginHost([def], ctx);
+    await host.start();
+    await host.setEnabled("a", false);
+    await bus.emit("test.ping", { n: 1 });
+    expect(h).not.toHaveBeenCalled();
+    await host.setEnabled("a", true);
+    await bus.emit("test.ping", { n: 2 });
+    expect(h).toHaveBeenCalledTimes(1);
+  });
+
+  it("a disabled plugin's context neither subscribes nor emits", async () => {
+    const { ctx, bus } = setup();
+    const host = new PluginHost([plain("a")], ctx);
+    await host.start();
+    await host.setEnabled("a", false);
+    const own = jest.fn();
+    const other = jest.fn();
+    const off = host.contextFor("a").bus.on("test.ping", own);
+    expect(typeof off).toBe("function");
+    bus.on("test.ping", other);
+    await expect(host.contextFor("a").bus.emit("test.ping", { n: 1 })).resolves.toBeUndefined();
+    await bus.emit("test.ping", { n: 2 });
+    expect(own).not.toHaveBeenCalled();
+    expect(other).toHaveBeenCalledTimes(1);
+    expect(other).toHaveBeenCalledWith({ n: 2 });
+  });
+
+  it("a throwing change listener does not reject setEnabled", async () => {
+    const { ctx } = setup();
+    const onError = jest.fn();
+    const host = new PluginHost([plain("a")], ctx, { onError });
+    await host.start();
+    host.subscribe(() => {
+      throw new Error("x");
+    });
+    await expect(host.setEnabled("a", false)).resolves.toBeUndefined();
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it("start() is serialized with setEnabled", async () => {
+    const { ctx } = setup();
+    const cleanup = jest.fn();
+    const activate = jest.fn(() => cleanup);
+    const host = new PluginHost([{ ...plain("a"), activate }], ctx);
+    const p = host.start();
+    const q = host.setEnabled("a", false);
+    await Promise.all([p, q]);
+    expect(host.isEnabled("a")).toBe(false);
+    expect(activate).toHaveBeenCalledTimes(1);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+  describe("entry types", () => {
+    const et = (id: string) => ({
+      id,
+      name: id,
+      description: id,
+      icon: "book",
+      fields: [{ key: "t", label: "T", kind: "text" as const }],
+      photos: false,
+      card: { variant: "note" as const, tint: "sage" as const },
+      templateId: id.split(".")[1],
+    });
+    const withTypes = (id: string, names: string[]): PluginDefinition => ({
+      ...plain(id),
+      entryTypes: names.map((n) => et(`${id}.${n}`)),
+    });
+
+    it("entryTypes() excludes disabled plugins; entryType() still finds them", async () => {
+      const { ctx } = setup();
+      const host = new PluginHost([withTypes("a", ["x"]), withTypes("b", ["y"])], ctx);
+      await host.start();
+      await host.setEnabled("b", false);
+      expect(host.entryTypes().map((t) => t.id)).toEqual(["a.x"]);
+      expect(host.entryType("b.y")?.id).toBe("b.y");
+      expect(host.entryType("nope.z")).toBeUndefined();
+    });
+
+    it("throws when two plugins share a type id", () => {
+      const { ctx } = setup();
+      const dup = { ...withTypes("b", []), entryTypes: [et("a.x")] };
+      expect(() => new PluginHost([withTypes("a", ["x"]), dup], ctx)).toThrow();
+    });
   });
 });

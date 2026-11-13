@@ -1,11 +1,9 @@
 import { render, screen } from "@testing-library/react-native";
 import { Text } from "react-native";
 
-import { createTestDb } from "@/core/db/test-db";
-import { EventBus } from "@/core/events/bus";
 import { PluginHost } from "@/core/plugins/host";
 import { DbKeyError, EncryptionUnavailableError, MissingDbKeyError } from "@/core/security/db-key";
-import { createAppSettings } from "@/core/settings/app-settings";
+import { createTestServices } from "@/core/test-services";
 import { ALL_PLUGINS } from "@/plugins";
 import {
   AppProvider,
@@ -23,12 +21,10 @@ function EnabledList() {
 
 describe("AppProvider", () => {
   it("renders children with services once booted", async () => {
-    const db = createTestDb();
-    const bus = new EventBus({ onError: jest.fn() });
-    const settings = createAppSettings(db);
-    const host = new PluginHost(ALL_PLUGINS, { db, bus, settings }, { onError: jest.fn() });
+    const core = createTestServices();
+    const host = new PluginHost(ALL_PLUGINS, core, { onError: jest.fn() });
     await host.start();
-    const services: AppServices = { host, bus, settings };
+    const services: AppServices = { host, bus: core.bus, settings: core.settings, media: core.media };
 
     await render(
       <AppProvider boot={() => Promise.resolve(services)}>

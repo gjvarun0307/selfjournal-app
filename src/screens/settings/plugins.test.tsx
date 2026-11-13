@@ -1,20 +1,15 @@
 import { fireEvent, render, screen } from "@testing-library/react-native";
 
-import { createTestDb } from "@/core/db/test-db";
-import { EventBus } from "@/core/events/bus";
 import { PluginHost } from "@/core/plugins/host";
-import { createAppSettings } from "@/core/settings/app-settings";
+import { createTestServices } from "@/core/test-services";
 import { ALL_PLUGINS } from "@/plugins";
 import { PluginsScreen } from "./plugins";
 
 async function startedHost() {
-  const db = createTestDb();
+  const services = createTestServices();
+  const { db } = services;
   const onError = jest.fn();
-  const host = new PluginHost(
-    ALL_PLUGINS,
-    { db, bus: new EventBus({ onError: jest.fn() }), settings: createAppSettings(db) },
-    { onError },
-  );
+  const host = new PluginHost(ALL_PLUGINS, services, { onError });
   await host.start();
   return { db, host, onError };
 }
