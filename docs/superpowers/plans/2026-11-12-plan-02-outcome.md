@@ -53,6 +53,11 @@
 | R-F | The duplicate type-id check stays as a defensive check. | It's cheap and guards plugins that reuse an id. | None. |
 | R-G | `expo prebuild --clean` ran only in Task 9. | It was the first native build since expo-image-picker, expo-image-manipulator and expo-notifications were added. It built clean. | None. |
 | R-H | `microphonePermission: false` added to the image-picker plugin config. | Stops `RECORD_AUDIO` being merged in. Confirmed removed in the manifest. | None. |
+| R-I | The reminder fix keys on `canAskAgain` in `notifier`, not in `reminder.ts`. | Keeps `reminder.ts` and its tests intact. | One more device check. |
+| R-J | Storage and media-read permissions are blocked with `blockedPermissions`. | The system photo picker needs no permission. | The picker fails on old Android (device check). |
+| R-K | Only the C2DM permission is blocked; the FCM service/receiver stay until Plan 8. | Without `google-services.json`, Firebase never initializes. | The F-Droid scanner flags it later. |
+| R-L / R-M | No lock-overlay code change; verify with `uiautomator dump --compressed`. | The overlay already hides the content underneath from accessibility. | A device check catches it. |
+| R-N | Deep-link reachability with Journal off stays deferred. | Needs a crafted link; not a user path. | A crafted link can add a future-dated entry. |
 
 ## Must fix before merge
 
@@ -93,6 +98,51 @@ Commits after 152916a:
 
 ## Deferred minor findings
 
-(filled in after the final review)
+None of these block merge. Items the fix wave resolved are left out.
 
-Also deferred: set up ESLint (R-E). The lock overlay's accessibility tree still exposes the screen underneath (uiautomator shows both), which matters for screen readers.
+**Carried over, not minor**
+- Device rechecks 1, 2 and 4–7 of the fix wave (above) haven't run yet: the emulator's own screen lock blocked them. They need to run before the first release build. #6 is how to confirm F5: the lock overlay already sets `no-hide-descendants` (`src/screens/lock/index.tsx:231`). The earlier report that the overlay exposes the screen underneath came from a plain `uiautomator dump`, which includes hidden views.
+- Deep links can open journal routes while the Journal plugin is off, and the service doesn't enforce P4 (a crafted link could add an entry to a future day). This needs a crafted link and isn't a user path in Plan 2 (R-N).
+- Set up ESLint (R-E). One known error: `react-hooks/globals` in `lock-gate.test.tsx`.
+- Firebase/FCM components from expo-notifications are still merged into the APK (R-K). So is `com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE` from a merged library. Plan 8 decides.
+
+**From the fix-wave re-review**
+- `media.sweep()`: an import that starts after the `importing === 0` check but before `sweepTemp` finishes could lose its picker temp file. The sweep only runs at boot, so this is unlikely.
+- The Reminders screen's "Allow notifications" button can show again after the user dismisses the system prompt, because `canAskAgain` stays true. This is harmless.
+
+**Core / plugin host**
+- `host.ts`: listener errors are reported through `onError` with a "failed to activate" message and the toggled plugin id.
+- No test of `ctx.bus.on` unsubscribing while enabled, or of a double-off on a later disable.
+- The scoped settings prefix could collide if a plugin id contained a dot (theoretical; ids are fixed).
+- `src/core/test-services.ts` uses the `jest` global inside `src` (a test-only helper).
+
+**Entry types**
+- `validate.test.ts` lacks cases: required empty number, unknown raw keys ignored, `" 2,5 "` whitespace, `"0"`, `"5."`.
+- `validate.ts`: `replace(",", ".")` replaces only the first comma (the regex rejects the rest anyway).
+
+**Media**
+- The stale-pending sweep's select-then-delete can race a commit; the commit then silently updates 0 rows.
+- The concurrent-key test doesn't exercise `ON CONFLICT` across two stores.
+- The discard traversal guard only checks a literal `/../`.
+- The placeholder icon size uses the `space.xl` token.
+
+**Journal service**
+- `update`/`remove` read the old entry outside the transaction (a stale removed-photo list if interleaved).
+- Duplicate `photoIds` abort the transaction (no dedupe).
+- Test gaps: update with retained/reordered photos, transaction rollback, rowid tiebreak.
+- `getJournalService` ignores later `lookupType` closures (undocumented).
+- `days.test` sets TZ after hoisted imports (works lazily; move it to a comment or the jest config).
+
+**Journal screens**
+- A rejected `listDay` is swallowed: a blank screen with no retry. Detail delete failures are silent, and load errors are swallowed.
+- Nav buttons are 40 dp and the Today chip about 33 dp, under the 48 dp touch target.
+- The card's accessibility label omits the rating, with a trailing ": " when there's no title. Rating fields in the editor lack a field-name label.
+- Styling literals: `font.title*0.8`, spacing tokens used as icon sizes, opacity literals, `minHeight 48`, an unchecked `IconName` cast; the theme imports a type from core.
+- Editor: Leave is guarded by state, not a ref (a same-frame double tap dispatches twice). An unchanged edit saved then backed out quickly can pop an extra screen. Unmounting without the guard leaves session-imported media to the boot sweep. In new mode, an unknown or disabled `typeId` shows the edit-unavailable copy.
+- The editor test doesn't prove `disablePrevention()` releases the guard on save (the router mocks ignore it). Worth a device check.
+- Detail: no test for the double-tap delete guard or for photos rendering; the route param `id` may be `string[]`.
+- Not tested at the screen level: day rollover, `use-today` focus/unmount, sand tint.
+
+**Reminder**
+- A rapid toggle during an in-flight sync can leave a reminder scheduled while the switch is off; `change` spreads a stale closure.
+- `readReminder("10:60")` is untested; the get-then-set in `askOnce` isn't atomic; the default state flashes before load.
