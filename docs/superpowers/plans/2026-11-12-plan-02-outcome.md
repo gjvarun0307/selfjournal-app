@@ -83,13 +83,15 @@ Commits after 152916a:
 
 | # | Check | Result | Evidence |
 |---|---|---|---|
-| 1 | Fresh install: prompt once on the Journal tab, alarm after allowing | Not run | The emulator's own screen lock (an unknown device PIN, not the app's 2468) blocked the UI. |
-| 2 | Deny, then grant in the background: alarm appears without a restart | Not run | Same blocker. |
+| 1 | Fresh install: prompt once on the Journal tab, alarm after allowing | Pass | Uninstall then install; `POST_NOTIFICATIONS granted=false` with no USER_SET flag. Onboarding ("Not now") then the Journal tab shows "Allow SelfJournal to send you notifications?". After Allow: `granted=true, flags=[USER_SET…]` and `dumpsys alarm` has `RTC_WAKEUP … origWhen=2026-11-13 20:00:00 … NOTIFICATION_EVENT`. Force-stop and relaunch: no second prompt. (The dev client asks for local network access first; that's debug-only.) |
+| 2 | Deny, then grant in the background: alarm appears without a restart | Pass | `pm revoke` gives the Reminders screen an "Allow notifications" button. Toggling the reminder off and on cleared the alarm and showed the system prompt; "Don't allow" gives "Notifications are turned off for SelfJournal in your phone's settings." + "Open phone settings", with 0 alarms. Home, `pm grant`, then reopen (same pid 29198): the note is gone and the 20:00 alarm is back. |
 | 3 | APK has no READ/WRITE_EXTERNAL_STORAGE, READ_MEDIA_IMAGES or c2dm RECEIVE | Pass | `aapt dump permissions app-debug.apk` lists none of the four. |
-| 4 | Picking photos still works | Not run | Same blocker. |
-| 5 | Force-stop mid-import, relaunch: temp dirs empty | Not run | Same blocker. |
-| 6 | Locked: `uiautomator dump --compressed` has no journal text (F5) | Not run | Same blocker. |
-| 7 | Reminder fires with "SelfJournal" / "Time to check in." | Not run | Same blocker. |
+| 4 | Picking photos still works | Pass | The system photo picker opens with no storage permission. 2 photos (one 12 MB, 4000x3000) imported; `files/media` has a `.full`/`.thumb` pair each, and `head -c 3 *.full` gives `4ed96c` (not `ffd8ff`). `cache/ImagePicker` and `cache/ImageManipulator` were empty right after import (F2a). The saved card shows the entry. |
+| 5 | Force-stop mid-import, relaunch: temp dirs empty | Pass | 7 photos picked; force-stopped as soon as a temp file appeared: `cache/ImagePicker` held `7d66c6af-….jpeg` (12,023,388 bytes, plaintext). After relaunch both dirs are empty, and the saved entry's 4 media files are untouched. |
+| 6 | Locked: `uiautomator dump --compressed` has no journal text (F5) | Pass | PIN 2468 set, entry "Zephyrlantern" / "Quokkaharbour" on the Journal tab, Home for 36 s, reopen. The compressed dump shows only the PIN pad ("Welcome back", digits, Unlock, Forgot PIN?). A plain dump still has 3 matches for the entry text (hidden views), as expected. |
+| 7 | Reminder fires with "SelfJournal" / "Time to check in." | Pass | Time set to 11:05 PM via the Time row (it read "Time, 11:05 PM"), app in the background. It posted at 23:08 (inexact window): channel `reminders`, tag `journal.daily-reminder`, `vis=PRIVATE`, title "SelfJournal", body "Time to check in." in the shade. The small icon is the app's own resource and renders correctly (still the Expo template "A" artwork; replace before release). |
+
+Rechecks were run on 2026-11-12 on emulator-5554 (API 37) with Metro on 8082, after the emulator's screen lock was cleared.
 
 ## Must do at the start of Plan 3
 
@@ -101,7 +103,7 @@ Commits after 152916a:
 None of these block merge. Items the fix wave resolved are left out.
 
 **Carried over, not minor**
-- Device rechecks 1, 2 and 4–7 of the fix wave (above) haven't run yet: the emulator's own screen lock blocked them. They need to run before the first release build. #6 is how to confirm F5: the lock overlay already sets `no-hide-descendants` (`src/screens/lock/index.tsx:231`). The earlier report that the overlay exposes the screen underneath came from a plain `uiautomator dump`, which includes hidden views.
+- The app and notification icon are still the Expo template "A" artwork. Replace before the first release (Plan 8).
 - Deep links can open journal routes while the Journal plugin is off, and the service doesn't enforce P4 (a crafted link could add an entry to a future day). This needs a crafted link and isn't a user path in Plan 2 (R-N).
 - Set up ESLint (R-E). One known error: `react-hooks/globals` in `lock-gate.test.tsx`.
 - Firebase/FCM components from expo-notifications are still merged into the APK (R-K). So is `com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE` from a merged library. Plan 8 decides.
